@@ -1,94 +1,203 @@
 {
-  "name": "Noon Actor",
-  "version": 1,
-  "file": "actor.glb",
-  "source": "assets-src/noon-actor.blend",
-  "generator": "scripts/build_character.py",
-  "units": "meters",
-  "up": "+Y",
+  "name": "Noon Traveler",
+  "assetVersion": 2,
+  "source": "KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg",
+  "license": "CC0-1.0",
+  "sourceCommit": "672074b73ba276876a19e8816ecdc5241817ab47",
+  "height": 2.238505,
+  "groundOffset": -0.000864,
+  "bounds": {
+    "x": [
+      -0.651587,
+      0.669043
+    ],
+    "depth": [
+      -0.588976,
+      0.567293
+    ],
+    "height": [
+      -0.000864,
+      2.237641
+    ]
+  },
   "forward": "+Z",
-  "height": 1.745,
-  "mesh": "ActorMesh",
-  "skeleton": "NoonActor",
-  "bones": [
+  "up": "+Y",
+  "rootMotion": false,
+  "bones": 42,
+  "boneNames": [
     "root",
     "hips",
     "spine",
     "chest",
-    "neck",
+    "upperarm.l",
+    "lowerarm.l",
+    "wrist.l",
+    "hand.l",
+    "handslot.l",
+    "upperarm.r",
+    "lowerarm.r",
+    "wrist.r",
+    "hand.r",
+    "handslot.r",
     "head",
-    "thigh.L",
-    "shin.L",
-    "foot.L",
-    "thigh.R",
-    "shin.R",
-    "foot.R",
-    "arm.L",
-    "forearm.L",
-    "hand.L",
-    "arm.R",
-    "forearm.R",
-    "hand.R",
-    "scarf.1",
-    "scarf.2",
-    "eye.L",
-    "eye.R"
+    "cape.tip",
+    "upperleg.l",
+    "lowerleg.l",
+    "foot.l",
+    "toes.l",
+    "upperleg.r",
+    "lowerleg.r",
+    "foot.r",
+    "toes.r",
+    "kneeIK.l",
+    "control-toe-roll.l",
+    "control-heel-roll.l",
+    "control-foot-roll.l",
+    "heelIK.l",
+    "IK-foot.l",
+    "IK-toe.l",
+    "kneeIK.r",
+    "control-toe-roll.r",
+    "control-heel-roll.r",
+    "control-foot-roll.r",
+    "heelIK.r",
+    "IK-foot.r",
+    "IK-toe.r",
+    "elbowIK.l",
+    "handIK.l",
+    "elbowIK.r",
+    "handIK.r"
   ],
-  "boneCount": 22,
-  "triangles": 12252,
-  "vertices": 6468,
-  "materials": [
-    "Cream",
-    "CreamShade",
-    "Skin",
-    "Coral",
-    "CoralShade",
-    "Ink",
-    "Stitch"
-  ],
+  "triangles": 4005,
+  "vertices": 3252,
+  "materials": {
+    "Ivory": "F1E2BC",
+    "Coral": "D96D53",
+    "Ink": "28344A",
+    "Leather": "AC7954",
+    "Face": "E9B27D",
+    "Brass": "D9B571"
+  },
   "clips": {
     "idle": {
-      "seconds": 3.2,
-      "frames": 97,
-      "loop": true
+      "source": "Idle",
+      "duration": 3.2,
+      "loop": true,
+      "frames": 97
     },
     "walk": {
-      "seconds": 0.8,
-      "frames": 25,
-      "loop": true
+      "source": "Walking_A",
+      "duration": 1.066667,
+      "loop": true,
+      "strideLength": 1.0,
+      "frames": 33
     },
     "chase": {
-      "seconds": 0.6,
-      "frames": 19,
-      "loop": true
+      "source": "Running_B",
+      "duration": 0.8,
+      "loop": true,
+      "strideLength": 2.48,
+      "phaseOffset": 0.0625,
+      "frames": 25
     },
     "look": {
-      "seconds": 2.4,
-      "frames": 73,
-      "loop": true
+      "source": null,
+      "duration": 2.4,
+      "loop": false,
+      "frames": 73
     },
     "shrug": {
-      "seconds": 2.2,
-      "frames": 67,
-      "loop": false
+      "source": null,
+      "duration": 2.2,
+      "loop": false,
+      "frames": 67
     },
     "sit": {
-      "seconds": 3.2,
-      "frames": 97,
-      "loop": true
+      "source": "Sit_Floor_Down",
+      "duration": 2.2,
+      "loop": false,
+      "holdLastFrame": true,
+      "frames": 67
+    },
+    "rise": {
+      "source": "Sit_Floor_StandUp",
+      "duration": 1.4,
+      "loop": false,
+      "frames": 43
     },
     "bow": {
-      "seconds": 2.5,
-      "frames": 76,
-      "loop": false
+      "source": null,
+      "duration": 2.4,
+      "loop": false,
+      "frames": 73
     },
     "turn": {
-      "seconds": 1.8,
-      "frames": 55,
-      "loop": false
+      "source": null,
+      "duration": 1.8,
+      "loop": false,
+      "frames": 55
+    },
+    "struggle": {
+      "source": null,
+      "duration": 2.4,
+      "loop": true,
+      "frames": 73
     }
   },
-  "rootMotion": false,
-  "sitNote": "Sit clip lowers hips 0.455 m; keep scene actor origin on ground.",
-  "license": "Original project asset; no external model or motion sources."
+  "motionMetrics": {
+    "idle": {
+      "hipVerticalRange": 0.024044,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.0,
+      "feetMotionRange": 1.6e-05
+    },
+    "walk": {
+      "hipVerticalRange": 0.054495,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.0,
+      "feetMotionRange": 0.383467,
+      "stanceFitSpeed": 0.958786,
+      "stanceHorizontalResidualRange": 0.068272,
+      "stanceFitCycleDistance": 1.022705
+    },
+    "chase": {
+      "hipVerticalRange": 0.079238,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.0,
+      "feetMotionRange": 0.615586,
+      "stanceFitSpeed": 3.363899,
+      "stanceHorizontalResidualRange": 0.066025,
+      "stanceFitCycleDistance": 2.691119
+    },
+    "struggle": {
+      "hipVerticalRange": 0.0,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.0,
+      "feetMotionRange": 0.0
+    },
+    "sit": {
+      "hipVerticalRange": 0.308724,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.49738258,
+      "feetMotionRange": 0.497539
+    },
+    "rise": {
+      "hipVerticalRange": 0.308724,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.49738264,
+      "feetMotionRange": 0.497383
+    },
+    "bow": {
+      "hipVerticalRange": 0.0,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.0,
+      "feetMotionRange": 0.0
+    }
+  },
+  "notes": [
+    "Sit ends and holds a floor-seated pose; feet extend forward.",
+    "Bow begins and ends in the same standing pose.",
+    "Walk/chase stride is approximate; source hand-keyed motion has measurable stance slip.",
+    "Palette baked into ordinary flat materials; no texture map required."
+  ]
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { BOW, HOME, EXIT, PLANT, type Actor, type Frame, type Visual, type Vec } from './engine';
+import { ANIMATIONS, BOW, HOME, EXIT, PLANT, type Actor, type Frame, type Visual, type Vec } from './engine';
 
 const C={cream:0xfff0c9,paper:0xf5e8c9,sand:0xedbc4a,tile:0xf6cf65,coral:0xd9654c,lightCoral:0xed8764,darkCoral:0xa84142,ink:0x30334c,blue:0x374f9f,mint:0x92baa1,green:0x457e6e,leaf:0x729a78};
 type Rig={root:THREE.Group,mixer:THREE.AnimationMixer,actions:Map<string,THREE.AnimationAction>,nodes:THREE.Object3D[]};
@@ -14,6 +14,7 @@ export class StageScene {
   inputArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),1.4,C.cream,.35,.23);
   bodyTrail:THREE.Line;shadowTrail:THREE.Line;
   floor:THREE.Mesh; ready=false; pixelRatio=1.5; lastFrame:Frame|null=null;
+  actorScale=1.18; stride=1.0; runStride=2.48; phaseOffsets:Record<string,number>={}; framingPoints:THREE.Vector3[]=[];
   constructor(public host:HTMLElement){
     this.renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,this.pixelRatio));
@@ -33,6 +34,12 @@ export class StageScene {
     this.buildBench(-6.6,-3.5);this.buildProps();
     this.homeRing=this.ring(HOME.x,HOME.z,.47,C.cream);this.exitRing=this.ring(EXIT.x,EXIT.z,.63,C.mint);this.bowRing=this.ring(BOW.x,BOW.z,.6,C.mint);this.bowRing.visible=false;
     this.door=this.buildDoor();
+    // Fit the whole architecture in camera space, including the tower roofs and platform.
+    this.stage.updateMatrixWorld(true);
+    this.stage.traverse(node=>{if(!(node instanceof THREE.Mesh))return;
+      node.geometry.computeBoundingBox();const bounds=node.geometry.boundingBox!;
+      for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])this.framingPoints.push(new THREE.Vector3(x,y,z).applyMatrix4(node.matrixWorld));
+    });
     this.overlay.visible=false;
     this.overlay.add(this.inputArrow);
     const trail=(color:number)=>new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(305*3),3)),new THREE.LineBasicMaterial({color}));
@@ -185,11 +192,13 @@ export class StageScene {
   }
   ring(x:number,z:number,r:number,color:number){const m=new THREE.Mesh(new THREE.RingGeometry(r-.025,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.025,z);this.stage.add(m);return m;}
   async load(){
-    const gltf=await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb`);this.clips=gltf.animations;
+    const [gltf,manifest]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json`).then(r=>r.json())]);this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
+    const bounds=new THREE.Box3().setFromObject(gltf.scene);this.actorScale=2.3/(bounds.max.y-bounds.min.y);
+    this.stride=(manifest.clips.walk.strideLength||1)*this.actorScale;this.runStride=(manifest.clips.chase.strideLength||2.48)*this.actorScale;
     this.body=this.createRig(gltf.scene,false);this.shadow=this.createRig(gltf.scene,true);this.ready=true;
   }
   createRig(source:THREE.Group,shadow:boolean):Rig{
-    const root=cloneSkeleton(source) as THREE.Group;root.name=shadow?'Shadow actor':'Body actor';root.scale.setScalar(1.18);
+    const root=cloneSkeleton(source) as THREE.Group;root.name=shadow?'Shadow actor':'Body actor';root.scale.setScalar(this.actorScale);
     const materialFor=(m:THREE.Material)=>{
       const original=m as THREE.MeshStandardMaterial;const color=original.color?.getHex()??C.cream;
       if(shadow){
@@ -231,10 +240,14 @@ export class StageScene {
       rig.nodes.forEach((node,i)=>{const j=i*10;node.position.fromArray(values,j);node.quaternion.fromArray(values,j+3);node.scale.fromArray(values,j+7);});
     }else{
       rig.actions.forEach(action=>{action.enabled=false;action.weight=0;});
-      const active=rig.actions.get(a.animation)||rig.actions.get('idle');const previous=rig.actions.get(a.previous)||active;
-      if(active){active.enabled=true;active.time=a.animTime%active.getClip().duration;active.weight=a.blend;}
-      if(previous&&previous!==active&&a.blend<1){previous.enabled=true;previous.time=a.previousTime%previous.getClip().duration;previous.weight=1-a.blend;}
-      else if(active)active.weight=1;
+      for(const name of ANIMATIONS){
+        const action=rig.actions.get(name)||rig.actions.get(name==='struggle'?'look':'idle');
+        if(!action||a.weights[name]<1e-6)continue;
+        const duration=action.getClip().duration;
+        const time=name==='walk'||name==='chase'?(a.gaitPhase+(this.phaseOffsets[name]||0))*duration:a.clocks[name];
+        action.enabled=true;action.weight+=a.weights[name];
+        action.time=['bow','shrug','turn','sit','rise','look'].includes(name)?Math.min(time,duration-1e-5):time%duration;
+      }
       rig.mixer.update(0);
     }
     rig.root.updateMatrixWorld(true);
@@ -245,7 +258,17 @@ export class StageScene {
   }
   apply(frame:Frame){
     this.lastFrame=frame;
-    if(this.body&&this.shadow){this.pose(this.body,frame.body,frame.visual?.body);this.pose(this.shadow,frame.shadow,frame.visual?.shadow);}
+    if(this.body&&this.shadow){
+      this.pose(this.body,frame.body,frame.visual?.body);this.pose(this.shadow,frame.shadow,frame.visual?.shadow);
+      const attachment=frame.shadowAttachment;
+      if(attachment>0){
+        this.shadow.root.position.lerp(this.body.root.position,attachment);
+        this.shadow.root.quaternion.slerp(this.body.root.quaternion,attachment);
+        // Captured playback poses already include this blend; do not apply it twice.
+        if(!frame.visual)this.shadow.nodes.forEach((node,i)=>{const body=this.body!.nodes[i];node.position.lerp(body.position,attachment);node.quaternion.slerp(body.quaternion,attachment);node.scale.lerp(body.scale,attachment);});
+        this.shadow.root.updateMatrixWorld(true);
+      }
+    }
     this.homeRing.visible=frame.stage==='arrival'||frame.stage==='return';
     this.homeRing.material=(this.homeRing.material as THREE.MeshBasicMaterial);(this.homeRing.material as THREE.MeshBasicMaterial).opacity=frame.goal?1:.55;(this.homeRing.material as THREE.MeshBasicMaterial).transparent=true;
     this.exitRing.visible=frame.stage==='arrival'&&!frame.goal||frame.stage==='follow'||frame.stage==='rejoin';
@@ -270,8 +293,12 @@ export class StageScene {
     return {x:right.x*x-forward.x*y,z:right.z*x-forward.z*y};
   }
   resize(){const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);
-    const aspect=w/h;const v=aspect>1.15?16.6:20.5;this.camera.left=-v*aspect/2;this.camera.right=v*aspect/2;this.camera.top=v/2;this.camera.bottom=-v/2;
-    if(aspect<1.15){this.camera.left=-12.1;this.camera.right=12.1;this.camera.top=12.1/aspect;this.camera.bottom=-12.1/aspect;}
+    const aspect=w/h;this.camera.updateMatrixWorld(true);
+    const points=this.framingPoints.map(p=>p.clone().applyMatrix4(this.camera.matrixWorldInverse));
+    const xs=points.map(p=>p.x),ys=points.map(p=>p.y);
+    const left=Math.min(...xs),right=Math.max(...xs),bottom=Math.min(...ys),top=Math.max(...ys);
+    const height=Math.max((top-bottom)*1.06,(right-left)*1.06/aspect),cx=(left+right)/2,cy=(bottom+top)/2;
+    this.camera.left=cx-height*aspect/2;this.camera.right=cx+height*aspect/2;this.camera.top=cy+height/2;this.camera.bottom=cy-height/2;
     this.camera.updateProjectionMatrix();this.render();}
   setQuality(low:boolean){this.renderer.setPixelRatio(low?1:Math.min(devicePixelRatio,1.5));this.resize();}
   render(){this.renderer.render(this.scene,this.camera);}

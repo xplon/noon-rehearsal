@@ -1,368 +1,201 @@
-"""Original Noon Rehearsal actor. Run with Blender 4.5: --background --python this_file.
+"""Adapt the CC0 KayKit Hooded Rogue to Noon Rehearsal.
 
-All geometry, rigging and clips are authored here; no downloaded character or motion.
-Blender Z-up / -Y forward exports to glTF Y-up / +Z forward.
+Requires Blender 4.5. Original geometry/skin and locomotion are Kay Lousberg's.
+Our changes: palette materials, unused-item removal, selected/resampled clips,
+five scene-specific acting clips, and subtle deforming cape follow-through.
+Blender Z-up/-Y forward -> GLB Y-up/+Z forward. See vendor/kaykit/LICENSE.txt.
 """
-import bpy, math, json, os
-from mathutils import Vector
+import bpy, math, json, hashlib, os
 from pathlib import Path
+from mathutils import Vector, Quaternion, Matrix
+ROOT=Path(__file__).resolve().parents[1]
+SOURCE=ROOT/'assets-src'; VENDOR=SOURCE/'vendor/kaykit'; OUT=ROOT/'public/assets'; PREVIEW=SOURCE/'previews'
+for p in [SOURCE,OUT,PREVIEW]: p.mkdir(parents=True,exist_ok=True)
+bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
+for a in list(bpy.data.actions):bpy.data.actions.remove(a)
+bpy.ops.import_scene.gltf(filepath=str(VENDOR/'Rogue_Hooded.glb'))
+scene=bpy.context.scene; source_fps=scene.render.fps
+rig=next(o for o in scene.objects if o.type=='ARMATURE');rig.name='NoonTraveler';rig.data.name='KayKitTravelerRig'
+for t in list(rig.animation_data.nla_tracks):rig.animation_data.nla_tracks.remove(t)
+for o in list(scene.objects):
+ if o.type=='MESH' and not o.name.startswith('Rogue_'):bpy.data.objects.remove(o,do_unlink=True)
+meshes=[o for o in scene.objects if o.type=='MESH'];old_actions={a.name:a for a in bpy.data.actions}
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / 'public' / 'assets'
-SOURCE = ROOT / 'assets-src'
-PREVIEW = SOURCE / 'previews'
-for p in (OUT, SOURCE, PREVIEW): p.mkdir(parents=True, exist_ok=True)
-
-bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
-for old in list(bpy.data.materials): bpy.data.materials.remove(old)
-scene = bpy.context.scene
-scene.render.fps = 30
-
-def color(hex):
-    c = [int(hex[i:i+2],16)/255 for i in (0,2,4)]
-    return tuple(v/12.92 if v <= .04045 else ((v+.055)/1.055)**2.4 for v in c)+(1,)
-
-def material(name, hex):
-    m=bpy.data.materials.new(name); m.diffuse_color=color(hex); m.use_nodes=True
-    bs=m.node_tree.nodes.get('Principled BSDF'); bs.inputs['Base Color'].default_value=color(hex)
-    bs.inputs['Roughness'].default_value=.95
-    return m
-
-M={
- 'Cream':material('Cream','FFF0C9'),
- 'CreamShade':material('CreamShade','E6CF9C'),
- 'Skin':material('Skin','EAD29E'),
- 'Coral':material('Coral','DA6049'),
- 'CoralShade':material('CoralShade','B74639'),
- 'Ink':material('Ink','282D4F'),
- 'Stitch':material('Stitch','9D886A'),
+def set_action(action):
+ rig.animation_data.action=action
+ if action.slots:rig.animation_data.action_slot=action.slots[0]
+def frame(value):scene.frame_set(int(value),subframe=value%1);bpy.context.view_layer.update()
+def snapshot():return {p.name:(p.location.copy(),p.rotation_quaternion.copy(),p.scale.copy()) for p in rig.pose.bones}
+def apply_pose(pose):
+ for n,(loc,rot,scale) in pose.items():
+  p=rig.pose.bones[n];p.rotation_mode='QUATERNION';p.location=loc;p.rotation_quaternion=rot;p.scale=scale
+ bpy.context.view_layer.update()
+# Store source sampling before new actions can overwrite rig channels.
+def sample_source(name,count):
+ a=old_actions[name];set_action(a);end=a.frame_range[1]
+ poses=[]
+ for i in range(count):frame(end*i/(count-1));poses.append(snapshot())
+ return poses
+base=sample_source('Idle',2)[0]
+FPS=30
+specs={
+ 'idle':dict(source='Idle',duration=3.2,loop=True),
+ 'walk':dict(source='Walking_A',duration=32/30,loop=True,strideLength=1.0),
+ 'chase':dict(source='Running_B',duration=.8,loop=True,strideLength=2.48,phaseOffset=.0625),
+ 'look':dict(source=None,duration=2.4,loop=False),
+ 'shrug':dict(source=None,duration=2.2,loop=False),
+ 'sit':dict(source='Sit_Floor_Down',duration=2.2,loop=False,holdLastFrame=True),
+ 'rise':dict(source='Sit_Floor_StandUp',duration=1.4,loop=False),
+ 'bow':dict(source=None,duration=2.4,loop=False),
+ 'turn':dict(source=None,duration=1.8,loop=False),
+ 'struggle':dict(source=None,duration=2.4,loop=True),
 }
-
-# A small custom skeleton, with scarf and eye bones for readable secondary acting.
-spec={
- 'root':((0,0,0),(0,0,.12),None),
- 'hips':((0,0,.62),(0,0,.8),'root'),
- 'spine':((0,0,.8),(0,0,1.02),'hips'),
- 'chest':((0,0,1.02),(0,0,1.16),'spine'),
- 'neck':((0,0,1.16),(0,0,1.29),'chest'),
- 'head':((0,0,1.29),(0,0,1.62),'neck'),
- 'thigh.L':((-.135,0,.65),(-.14,0,.38),'hips'),
- 'shin.L':((-.14,0,.38),(-.14,0,.12),'thigh.L'),
- 'foot.L':((-.14,0,.12),(-.14,-.18,.08),'shin.L'),
- 'thigh.R':((.135,0,.65),(.14,0,.38),'hips'),
- 'shin.R':((.14,0,.38),(.14,0,.12),'thigh.R'),
- 'foot.R':((.14,0,.12),(.14,-.18,.08),'shin.R'),
- 'arm.L':((-.245,0,1.06),(-.34,0,.84),'chest'),
- 'forearm.L':((-.34,0,.84),(-.37,-.01,.65),'arm.L'),
- 'hand.L':((-.37,-.01,.65),(-.37,-.02,.56),'forearm.L'),
- 'arm.R':((.245,0,1.06),(.34,0,.84),'chest'),
- 'forearm.R':((.34,0,.84),(.37,-.01,.65),'arm.R'),
- 'hand.R':((.37,-.01,.65),(.37,-.02,.56),'forearm.R'),
- 'scarf.1':((-.07,-.13,1.18),(-.07,-.2,1.02),'chest'),
- 'scarf.2':((-.07,-.2,1.02),(-.09,-.22,.86),'scarf.1'),
- 'eye.L':((-.064,-.208,1.49),(-.064,-.208,1.52),'head'),
- 'eye.R':((.064,-.208,1.49),(.064,-.208,1.52),'head'),
-}
-armdata=bpy.data.armatures.new('NoonActorSkeleton')
-rig=bpy.data.objects.new('NoonActor',armdata); bpy.context.collection.objects.link(rig)
-bpy.context.view_layer.objects.active=rig; rig.select_set(True)
-bpy.ops.object.mode_set(mode='EDIT')
-for name,(a,b,parent) in spec.items():
-    bone=armdata.edit_bones.new(name); bone.head=a; bone.tail=b
-    bone.align_roll(Vector((0,1 if b[2]<a[2] else -1,0)))
-    if parent: bone.parent=armdata.edit_bones[parent]
+source_samples={}
+for name,spec in specs.items():
+ n=round(spec['duration']*FPS)+1
+ if spec['source']:
+  if name=='sit':
+   # Slower controlled descent (1.4s), then 0.8s seated hold.
+   a=old_actions['Sit_Floor_Down'];set_action(a);source_samples[name]=[]
+   for i in range(n):frame(a.frame_range[1]*min(1,(i/FPS)/1.4));source_samples[name].append(snapshot())
+  else:source_samples[name]=sample_source(spec['source'],n)
+rig.animation_data.action=None
+for a in list(bpy.data.actions):bpy.data.actions.remove(a)
+apply_pose(base)
+# One additional weighted cape control; geometry and original body skin remain intact.
+bpy.context.view_layer.objects.active=rig;rig.select_set(True);bpy.ops.object.mode_set(mode='EDIT')
+b=rig.data.edit_bones.new('cape.tip');b.head=(0,.18,1.10);b.tail=(0,.35,.40);b.parent=rig.data.edit_bones['chest'];b.use_deform=True
 bpy.ops.object.mode_set(mode='OBJECT')
-rig.select_set(False)
-parts=[]
-
-def assign_weights(obj, weights):
-    if isinstance(weights,str): weights={weights:1.0}
-    for bone in spec: obj.vertex_groups.new(name=bone)
-    for v in obj.data.vertices:
-        w=weights(v.co) if callable(weights) else weights
-        for name,amount in w.items():
-            if amount>0: obj.vertex_groups[name].add([v.index],amount,'REPLACE')
-
-def mesh(name, vertices, faces, mat='Cream', weights='spine', smooth=True):
-    data=bpy.data.meshes.new(name); data.from_pydata(vertices,[],faces); data.update()
-    obj=bpy.data.objects.new(name,data); bpy.context.collection.objects.link(obj)
-    obj.data.materials.append(M[mat]); assign_weights(obj,weights)
-    for poly in data.polygons: poly.use_smooth=smooth
-    parts.append(obj); return obj
-
-def ellipsoid(name, center, scale, mat, bone, rings=14, segments=24):
-    verts=[]; faces=[]
-    for i in range(rings+1):
-        phi=math.pi*i/rings
-        for j in range(segments):
-            th=2*math.pi*j/segments
-            verts.append((center[0]+scale[0]*math.sin(phi)*math.cos(th), center[1]+scale[1]*math.sin(phi)*math.sin(th),center[2]+scale[2]*math.cos(phi)))
-    for i in range(rings):
-        for j in range(segments):
-            a=i*segments+j; b=i*segments+(j+1)%segments
-            faces.append((a+segments,b+segments,b,a))
-    return mesh(name,verts,faces,mat,bone)
-
-def tube(name, points, radii, mat, bone, segments=12):
-    verts=[]; faces=[]
-    for i,p in enumerate(points):
-        tangent=Vector(points[min(i+1,len(points)-1)])-Vector(points[max(0,i-1)])
-        tangent.normalize(); axis=tangent.cross(Vector((0,1,0)))
-        if axis.length<.01: axis=tangent.cross(Vector((0,0,1)))
-        axis.normalize(); axis2=tangent.cross(axis).normalized()
-        r=radii[i] if isinstance(radii,list) else radii
-        for j in range(segments):
-            th=j*2*math.pi/segments; v=Vector(p)+r*(math.cos(th)*axis+math.sin(th)*axis2); verts.append(tuple(v))
-    for i in range(len(points)-1):
-        for j in range(segments):
-            a=i*segments+j; b=i*segments+(j+1)%segments; faces.append((a,b,b+segments,a+segments))
-    faces.append(tuple(reversed(tuple(range(segments)))))
-    faces.append(tuple((len(points)-1)*segments+j for j in range(segments)))
-    return mesh(name,verts,faces,mat,bone)
-
-def torso_weights(v):
-    if v.z<.65: return {'hips':1}
-    if v.z<.87:
-        a=(v.z-.65)/.22; return {'hips':1-a,'spine':a}
-    if v.z<1.04:
-        a=(v.z-.87)/.17; return {'spine':1-a,'chest':a}
-    return {'chest':1}
-
-# Sculpted continuous coat with an asymmetric hand-cut hem and subtle panel planes.
-profiles=[(.52,.30,.18),(.55,.315,.19),(.61,.30,.20),(.74,.26,.19),(.88,.235,.17),(1.0,.267,.17),(1.075,.23,.155),(1.13,.14,.115)]
-verts=[]; faces=[]; count=40
-for i,(z,rx,ry) in enumerate(profiles):
-    for j in range(count):
-        a=2*math.pi*j/count
-        hem=(.014*math.cos(3*a)+.008*math.sin(5*a))*(1-i/(len(profiles)-1))
-        pleat=1+.018*math.cos(8*a)
-        verts.append((rx*math.cos(a)*pleat,ry*math.sin(a)*pleat,z+hem))
-for i in range(len(profiles)-1):
-    for j in range(count):
-        a=i*count+j; b=i*count+(j+1)%count; faces.append((a,b,b+count,a+count))
-faces.extend([tuple(reversed(tuple(range(count)))),tuple((len(profiles)-1)*count+j for j in range(count))])
-coat=mesh('SculptedCoat',verts,faces,'Cream',torso_weights)
-coat.data.materials.append(M['CreamShade'])
-for p in coat.data.polygons:
-    if p.center.x<-.21: p.material_index=1
-
-# Cape/mantle, open at the throat and lifting slightly at the shoulders.
-verts=[]; faces=[]; n=40
-for z,rx,ry in [(1.04,.31,.21),(1.09,.30,.205),(1.16,.21,.155),(1.20,.135,.115)]:
-    for j in range(n):
-        a=2*math.pi*j/n
-        verts.append((rx*math.cos(a),ry*math.sin(a),z+.015*math.cos(2*a)))
-for i in range(3):
-    for j in range(n):
-        a=i*n+j; b=i*n+(j+1)%n; faces.append((a,b,b+n,a+n))
-mantle=mesh('ShoulderMantle',verts,faces,'Cream','chest')
-# Fine ochre piping follows the hem: intentional costume detail rather than a texture.
-ring=[(.314*math.cos(t*2*math.pi/64),.212*math.sin(t*2*math.pi/64),1.04+.015*math.cos(t*4*math.pi/64)) for t in range(65)]
-tube('MantlePiping',ring,.007,'CreamShade','chest',8)
-
-# Limbs: tapered cloth sleeves and jointed ink-blue stockings.
-for side,xsign in [('L',-1),('R',1)]:
-    tube('StockingUpper.'+side,[(xsign*.135,0,.66),(xsign*.14,0,.38)],[.068,.054],'Ink','thigh.'+side)
-    tube('StockingLower.'+side,[(xsign*.14,0,.4),(xsign*.14,0,.13)],[.055,.043],'Ink','shin.'+side)
-    shoe=ellipsoid('SoftShoe.'+side,(xsign*.14,-.065,.083),(.085,.155,.078),'Ink','foot.'+side,10,20)
-    tube('ShoeTop.'+side,[(xsign*.14,.015,.14),(xsign*.14,-.095,.145)],[.048,.047],'CreamShade','foot.'+side,10)
-    tube('UpperSleeve.'+side,[(xsign*.24,0,1.065),(xsign*.335,0,.84)],[.09,.067],'Cream','arm.'+side,16)
-    tube('LowerSleeve.'+side,[(xsign*.335,0,.85),(xsign*.37,-.01,.67)],[.068,.058],'Cream','forearm.'+side,16)
-    tube('Cuff.'+side,[(xsign*.365,-.01,.695),(xsign*.37,-.01,.657)],[.062,.062],'Coral','forearm.'+side,16)
-    ellipsoid('Mitten.'+side,(xsign*.37,-.012,.603),(.059,.047,.073),'Skin','hand.'+side,10,16)
-    ellipsoid('Thumb.'+side,(xsign*.32,-.03,.62),(.026,.032,.04),'Skin','hand.'+side,8,12)
-
-# Neck and a complete sculpted hood shell. The front opening frames the oval face.
-ellipsoid('Neck',(0,0,1.22),(.10,.085,.13),'Skin','neck',10,16)
-verts=[]; faces=[]; nr=24; ns=48
-for i in range(nr+1):
-    t=i/nr; u=-.63+1.63*t; radius=math.sqrt(max(0,1-u*u))
-    for j in range(ns):
-        a=2*math.pi*j/ns
-        x=.24*radius*math.cos(a)
-        y=.205*u-.018*math.sin(a)*(1-t)
-        z=1.465+.28*radius*math.sin(a)
-        x-=max(0,z-1.65)*.1
-        verts.append((x,y,z))
-for i in range(nr):
-    for j in range(ns):
-        a=i*ns+j; b=i*ns+(j+1)%ns
-        faces.append((a+ns,b+ns,b,a))
-hood=mesh('OpenSculptedHood',verts,faces,'Cream','head')
-ellipsoid('Face',(0,-.127,1.465),(.174,.087,.202),'Skin','head',18,28)
-rim=[]
-for j in range(65):
-    a=2*math.pi*j/64
-    rim.append((.1864*math.cos(a),-.12915-.018*math.sin(a),1.465+.2175*math.sin(a)))
-tube('HoodRolledEdge',rim,.018,'Cream','head',10)
-for side,x in [('L',-.064),('R',.064)]:
-    ellipsoid('Eye.'+side,(x,-.211,1.493),(.014,.009,.021),'Ink','eye.'+side,10,16)
-ellipsoid('Nose',(0,-.221,1.447),(.017,.025,.021),'Skin','head',10,16)
-tube('Mouth',[(-.019,-.210,1.392),(0,-.214,1.388),(.019,-.210,1.392)],.003,'Stitch','head',6)
-# A quiet seam across the back of the hood.
-seam=[]
-for i in range(20):
-    a=.08+(math.pi-.16)*i/19
-    seam.append((-.009,.2057*math.sin(a),1.465+.281*math.cos(a)))
-tube('HoodBackSeam',seam,.0045,'CreamShade','head',6)
-
-# Scarf collar and a two-bone tapered cloth tail, with an asymmetric cut edge.
-scarf_ring=[(.141*math.cos(t*2*math.pi/48),.116*math.sin(t*2*math.pi/48),1.215+.009*math.cos(t*2*math.pi/48)) for t in range(49)]
-tube('ScarfCollar',scarf_ring,.035,'Coral','chest',12)
-ellipsoid('ScarfKnot',(-.07,-.14,1.19),(.063,.045,.052),'Coral','chest',10,16)
-verts=[]; faces=[]
-for i in range(9):
-    t=i/8; z=1.19-.33*t; y=-.20-.06*t-.02*math.sin(math.pi*t); x=-.07-.018*t; width=.055*(1-.25*t)
-    for back in [False,True]:
-        for s in [-1,1]: verts.append((x+s*width,y+(.008 if back else -.008),z+(.02*s if i==8 else 0)))
-for i in range(8):
-    a=i*4; b=a+4
-    faces.extend([(a,a+1,b+1,b),(a+3,a+2,b+2,b+3),(a+2,a,b,b+2),(a+1,a+3,b+3,b+1)])
-faces.extend([(0,2,3,1),(32,33,35,34)])
-def scarf_weights(v):
-    f=max(0,min(1,(1.04-v.z)/.12)); return {'scarf.1':1-f,'scarf.2':f}
-mesh('ScarfTail',verts,faces,'Coral',scarf_weights)
-# Small brass-colored toggle anchors the cloak, visible without texture.
-ellipsoid('Toggle',(0,-.184,1.03),(.035,.012,.018),'CreamShade','chest',8,12)
-
-# Join into a single material-indexed skinned mesh. This also simplifies shadow clones.
-bpy.ops.object.select_all(action='DESELECT')
-for obj in parts: obj.select_set(True)
-bpy.context.view_layer.objects.active=coat; bpy.ops.object.join()
-actor=bpy.context.object; actor.name='ActorMesh'; actor.data.name='OriginalNoonActorMesh'
-bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
-bpy.ops.mesh.normals_make_consistent(inside=False); bpy.ops.object.mode_set(mode='OBJECT')
-mod=actor.modifiers.new('ActorSkin','ARMATURE'); mod.object=rig
-actor.parent=rig
-for pb in rig.pose.bones: pb.rotation_mode='XYZ'
-
-def reset_pose():
-    for pb in rig.pose.bones:
-        pb.location=(0,0,0); pb.rotation_euler=(0,0,0); pb.scale=(1,1,1)
-
-def rotate(name,x=0,y=0,z=0): rig.pose.bones[name].rotation_euler=(x,y,z)
-def offset(name,x=0,y=0,z=0): rig.pose.bones[name].location=(x,y,z)
-
-clips={}
-def make_action(name,seconds,fn,step=2):
-    reset_pose(); action=bpy.data.actions.new(name); rig.animation_data_create(); rig.animation_data.action=action
-    end=round(seconds*30)+1
-    frames=list(range(1,end+1,step))
-    if frames[-1]!=end:frames.append(end)
-    for frame in frames:
-        reset_pose(); t=(frame-1)/30; u=t/seconds; fn(t,u)
-        for pb in rig.pose.bones:
-            pb.keyframe_insert('location',frame=frame,group=pb.name)
-            pb.keyframe_insert('rotation_euler',frame=frame,group=pb.name)
-            pb.keyframe_insert('scale',frame=frame,group=pb.name)
-    action.use_fake_user=True
-    clips[name]={'seconds':seconds,'frames':end,'loop':name in ['idle','walk','chase','look','sit']}
-    return action
-
-def breathe(t,u):
-    s=math.sin(u*2*math.pi)
-    rotate('chest',x=.014*s); rotate('head',x=-.012*s,z=.025*s)
-    rotate('scarf.1',x=.035*s); rotate('scarf.2',x=.045*math.sin(u*2*math.pi-.5))
-    blink=.1 if .73<u<.78 else 1
-    for n in ['eye.L','eye.R']:rig.pose.bones[n].scale=(1,blink,1)
-
-def locomotion(t,u,fast=False):
-    a=u*2*math.pi; amp=.65 if fast else .42
-    for side,phase in [('L',0),('R',math.pi)]:
-        s=math.sin(a+phase)
-        rotate('thigh.'+side,x=amp*s)
-        rotate('shin.'+side,x=max(0,-s)*(.75 if fast else .48))
-        rotate('foot.'+side,x=.12*s)
-        rotate('arm.'+side,x=-.32*s,y=(.06 if side=='L' else -.06))
-        rotate('forearm.'+side,x=-.16-(.35 if fast else .04)*max(0,-s))
-    # Local hips Y follows the bone's vertical axis, while X stays centered.
-    offset('hips',y=(.012 if fast else .003)*(1-math.cos(a*2)))
-    rotate('spine',x=.12 if fast else .035,z=.025*math.sin(a))
-    rotate('head',x=-.06 if fast else -.015,z=-.02*math.sin(a))
-    rotate('scarf.1',x=-.1-.08*math.sin(a));rotate('scarf.2',x=-.06-.12*math.sin(a-.5))
-
-def look(t,u):
-    s=.5-.5*math.cos(u*2*math.pi)
-    rotate('neck',x=.15*s);rotate('head',x=.35*s,z=.17*math.sin(u*2*math.pi))
-    rotate('chest',x=.06*s);rotate('arm.L',z=-.08*s);rotate('arm.R',z=.08*s)
-
-def shrug(t,u):
-    s=math.sin(math.pi*u)**2
-    rotate('arm.L',x=-.18*s,z=.8*s);rotate('arm.R',x=-.18*s,z=-.8*s)
-    rotate('forearm.L',x=-.75*s);rotate('forearm.R',x=-.75*s)
-    rotate('hand.L',y=-.5*s);rotate('hand.R',y=.5*s)
-    rotate('head',z=.16*s);offset('chest',y=.035*s)
-
-def sit(t,u):
-    # A held seated pose, caller cross-fades into it. Root horizontal position stays fixed.
-    offset('hips',y=-.455)
-    rotate('thigh.L',x=-1.45,z=.12);rotate('thigh.R',x=-1.45,z=-.12)
-    rotate('shin.L',x=.05);rotate('shin.R',x=.05)
-    rotate('foot.L',x=1.4);rotate('foot.R',x=1.4)
-    rotate('spine',x=.12);rotate('head',x=.1)
-    rotate('arm.L',x=-.55,z=-.14);rotate('arm.R',x=-.55,z=.14)
-    rotate('forearm.L',x=.6);rotate('forearm.R',x=.6)
-    rotate('scarf.1',x=.15);rotate('scarf.2',x=.1)
-    rotate('head',x=.1+.02*math.sin(u*2*math.pi))
-
-def bow(t,u):
-    s=math.sin(math.pi*u)**2
-    rotate('hips',x=.15*s);rotate('spine',x=.55*s);rotate('chest',x=.23*s);rotate('head',x=.18*s)
-    rotate('arm.L',x=.2*s,z=.16*s);rotate('arm.R',x=.2*s,z=-.16*s)
-    rotate('forearm.L',x=.2*s);rotate('forearm.R',x=.2*s)
-    rotate('scarf.1',x=-.35*s);rotate('scarf.2',x=-.15*s)
-
-def turn(t,u):
-    s=math.sin(math.pi*u)**2; rotate('head',y=.55*s);rotate('chest',y=.25*s);rotate('arm.R',x=-.15*s)
-
-actions={
- 'idle':make_action('idle',3.2,breathe),
- 'walk':make_action('walk',.8,lambda t,u:locomotion(t,u)),
- 'chase':make_action('chase',.6,lambda t,u:locomotion(t,u,True)),
- 'look':make_action('look',2.4,look),
- 'shrug':make_action('shrug',2.2,shrug),
- 'sit':make_action('sit',3.2,sit),
- 'bow':make_action('bow',2.5,bow),
- 'turn':make_action('turn',1.8,turn),
-}
-rig.animation_data.action=actions['idle']; reset_pose(); scene.frame_set(1)
-rig['asset_author']='Original procedural sculpture and animation for Noon Rehearsal'
-rig['forward']='Blender -Y / glTF +Z'; rig['source_script']='scripts/build_character.py'
-rig['animation_note']='In-place root; sit lowers hips by 0.455 m, not actor origin.'
-
-# Save editable asset before adding presentation-only cameras/lights.
-bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'noon-actor.blend'))
-bpy.ops.object.select_all(action='DESELECT'); actor.select_set(True);rig.select_set(True)
+cape=next(o for o in meshes if o.name=='Rogue_Cape')
+for g in list(cape.vertex_groups):cape.vertex_groups.remove(g)
+g_top=cape.vertex_groups.new(name='chest');g_tip=cape.vertex_groups.new(name='cape.tip')
+for v in cape.data.vertices:
+ w=max(0,min(1,(1.10-v.co.z)/.75));w=w*w*(3-2*w);g_tip.add([v.index],w,'REPLACE');g_top.add([v.index],1-w,'REPLACE')
+base['cape.tip']=(Vector((0,0,0)),Quaternion((1,0,0,0)),Vector((1,1,1)))
+for poses in source_samples.values():
+ for pose in poses:pose['cape.tip']=base['cape.tip']
+# Convert atlas UV categories to 6 ordinary flat material colors. No runtime map needed.
+def linear_hex(h):
+ c=[int(h[i:i+2],16)/255 for i in [0,2,4]]
+ return tuple(v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4 for v in c)+(1,)
+palette={'Ivory':'F1E2BC','Coral':'D96D53','Ink':'28344A','Leather':'AC7954','Face':'E9B27D','Brass':'D9B571'}
+materials={}
+for n,h in palette.items():
+ m=bpy.data.materials.new(n);m.diffuse_color=linear_hex(h);m.use_nodes=True
+ bs=m.node_tree.nodes.get('Principled BSDF');bs.inputs['Base Color'].default_value=m.diffuse_color;bs.inputs['Roughness'].default_value=.92
+ materials[n]=m
+for o in meshes:
+ uv=o.data.uv_layers.active.data;im=next(n.image for n in o.active_material.node_tree.nodes if n.type=='TEX_IMAGE');pixels=list(im.pixels);width,height=im.size
+ categories=[]
+ for p in o.data.polygons:
+  u=sum(uv[i].uv.x for i in p.loop_indices)/len(p.loop_indices);v=sum(uv[i].uv.y for i in p.loop_indices)/len(p.loop_indices)
+  idx=(max(0,min(height-1,int(v*height)))*width+max(0,min(width-1,int(u*width))))*4;r,g,b=pixels[idx:idx+3]
+  if o.name=='Rogue_Cape':c='Coral'
+  elif r<.18 and g>.24:
+   c='Coral' if o.name=='Rogue_Body' and g>1.5*b else 'Ivory'
+  elif max(r,g,b)<.32:c='Ink'
+  elif max(r,g,b)-min(r,g,b)<.16:c='Brass'
+  elif r>.84 and g>.58:c='Face'
+  elif 'Head' in o.name:c='Ink'
+  elif 'Leg' in o.name:c='Ink'
+  else:c='Leather'
+  categories.append(c)
+ o.data.materials.clear()
+ for m in materials.values():o.data.materials.append(m)
+ keys=list(materials)
+ for p,c in zip(o.data.polygons,categories):p.material_index=keys.index(c)
+ o['source']='KayKit Adventurers 1.0 / Kay Lousberg / CC0'
+# Pose additions use rotations about armature-space axes, transformed to each local basis.
+def rotate(name,axis,angle):
+ p=rig.pose.bones[name];world_axis=Vector(axis);local_axis=p.matrix.to_3x3().inverted()@world_axis
+ p.rotation_quaternion=p.rotation_quaternion@Quaternion(local_axis,angle);bpy.context.view_layer.update()
+def envelope(u):return math.sin(math.pi*u)**2
+scene.render.fps=FPS;actions={}
+for name,spec in specs.items():
+ count=round(spec['duration']*FPS)+1
+ action=bpy.data.actions.new(name);rig.animation_data.action=action;actions[name]=action
+ for i in range(count):
+  u=i/(count-1);apply_pose(source_samples[name][i] if name in source_samples else base)
+  if name=='look':
+   a=math.sin(2*math.pi*u)*envelope(u);rotate('head',(0,0,1),.52*a);rotate('chest',(0,0,1),.10*a)
+  elif name=='shrug':
+   e=envelope(u);rotate('upperarm.l',(0,1,0),-.29*e);rotate('upperarm.r',(0,1,0),.29*e)
+   rotate('lowerarm.l',(1,0,0),-.63*e);rotate('lowerarm.r',(1,0,0),-.63*e);rotate('head',(0,1,0),.12*e)
+  elif name=='bow':
+   e=envelope(u);rotate('spine',(1,0,0),.22*e);rotate('chest',(1,0,0),.24*e);rotate('head',(1,0,0),.16*e)
+   rotate('upperarm.l',(1,0,0),-.19*e);rotate('upperarm.r',(1,0,0),-.19*e)
+  elif name=='turn':
+   e=envelope(u);rotate('spine',(0,0,1),.14*e);rotate('chest',(0,0,1),.25*e);rotate('head',(0,0,1),.33*e)
+  elif name=='struggle':
+   s=math.sin(2*math.pi*u);c=math.cos(2*math.pi*u);rotate('spine',(1,0,0),.11+.05*s);rotate('chest',(0,1,0),.06*c)
+   rotate('head',(1,0,0),-.06-.04*s);rotate('upperarm.l',(1,0,0),-.16-.08*s);rotate('upperarm.r',(1,0,0),-.16+.08*s)
+   rotate('upperarm.l',(0,1,0),-.13);rotate('upperarm.r',(0,1,0),.13);rotate('lowerarm.l',(1,0,0),-.25-.09*s);rotate('lowerarm.r',(1,0,0),-.25+.09*s)
+  # Small delayed cloth response. Loop endpoints and tangents coincide analytically.
+  amp=.042 if name=='walk' else .065 if name=='chase' else .014
+  if spec['loop']:rotate('cape.tip',(1,0,0),amp*math.sin(2*math.pi*u-.7));rotate('cape.tip',(0,1,0),amp*.35*math.sin(2*math.pi*u))
+  else:rotate('cape.tip',(1,0,0),amp*math.sin(2*math.pi*u)*envelope(u))
+  for p in rig.pose.bones:
+   p.keyframe_insert('location',frame=i,group=p.name);p.keyframe_insert('rotation_quaternion',frame=i,group=p.name);p.keyframe_insert('scale',frame=i,group=p.name)
+ for layer in action.layers:
+  for strip in layer.strips:
+   bag=strip.channelbag(action.slots[0])
+   for curve in bag.fcurves:
+    for kp in curve.keyframe_points:kp.interpolation='LINEAR'
+    if spec['loop'] and len(curve.keyframe_points)>3:
+     keys=curve.keyframe_points;v0=keys[0].co.y;vn=keys[-1].co.y
+     # Symmetric endpoint tangent: C1 continuity for the baked linear channels.
+     d=((keys[1].co.y-v0)+(vn-keys[-2].co.y))*.5
+     keys[-1].co.y=v0;keys[1].co.y=v0+d;keys[-2].co.y=v0-d
+ # Quaternion tangent projection makes the loop's angular velocity symmetric.
+ for layer in action.layers:
+  for strip in layer.strips:
+   bag=strip.channelbag(action.slots[0]);paths={c.data_path for c in bag.fcurves if c.data_path.endswith('rotation_quaternion')}
+   if spec['loop']:
+    for path in paths:
+     curves=sorted([c for c in bag.fcurves if c.data_path==path],key=lambda c:c.array_index)
+     if len(curves)!=4:continue
+     q=Vector([c.keyframe_points[0].co.y for c in curves]);d=Vector([c.keyframe_points[1].co.y-c.keyframe_points[0].co.y for c in curves]);d-=q*(d.dot(q)/q.dot(q))
+     a=Quaternion(q+d).normalized();b=Quaternion(q-d).normalized()
+     for k,c in enumerate(curves):c.keyframe_points[1].co.y=a[k];c.keyframe_points[-2].co.y=b[k]
+ action.use_fake_user=True;spec['frames']=count;spec['duration']=round((count-1)/FPS,6)
+# Evidence metrics measured on final exported-motion rig, not inferred from names.
+metrics={}
+for name in ['idle','walk','chase','struggle','sit','rise','bow']:
+ set_action(actions[name]);rows=[];count=specs[name]['frames']
+ for i in range(count):
+  frame(i);rows.append({n:list(rig.matrix_world@rig.pose.bones[n].head) for n in ['root','hips','foot.l','foot.r','toes.l','toes.r']})
+ hip=[r['hips'][2] for r in rows]
+ metrics[name]={'hipVerticalRange':round(max(hip)-min(hip),6),'rootHorizontalRange':round(max(abs(r['root'][k]) for r in rows for k in [0,1]),6),'footLoopGap':round(max((Vector(rows[0][n])-Vector(rows[-1][n])).length for n in ['foot.l','foot.r']),8),'feetMotionRange':round(max((Vector(r[n])-Vector(rows[0][n])).length for r in rows for n in ['foot.l','foot.r']),6)}
+ if name in ['walk','chase']:
+  # Conservative stance fit to the support part of left-foot path. Report sliding honestly.
+  indices=list(range(1,12)) if name=='walk' else list(range(1,6));times=[i/FPS for i in indices];ys=[rows[i]['foot.l'][1] for i in indices];mt=sum(times)/len(times);my=sum(ys)/len(ys);speed=sum((t-mt)*(y-my) for t,y in zip(times,ys))/sum((t-mt)**2 for t in times)
+  residual=[y-speed*t for y,t in zip(ys,times)];metrics[name]['stanceFitSpeed']=round(speed,6);metrics[name]['stanceHorizontalResidualRange']=round(max(residual)-min(residual),6);metrics[name]['stanceFitCycleDistance']=round(speed*specs[name]['duration'],6)
+set_action(actions['idle']);frame(0)
+deps=bpy.context.evaluated_depsgraph_get();verts=[o.matrix_world@v.co for o in meshes for v in o.evaluated_get(deps).data.vertices]
+bounds={k:[round(min(v[i] for v in verts),6),round(max(v[i] for v in verts),6)] for i,k in enumerate(['x','depth','height'])}
+height=bounds['height'][1]-bounds['height'][0]
+triangles=sum(len(p.vertices)-2 for o in meshes for p in o.data.polygons);vertices=sum(len(o.data.vertices) for o in meshes)
+manifest={'name':'Noon Traveler','assetVersion':2,'source':'KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg','license':'CC0-1.0','sourceCommit':'672074b73ba276876a19e8816ecdc5241817ab47','height':round(height,6),'groundOffset':bounds['height'][0],'bounds':bounds,'forward':'+Z','up':'+Y','rootMotion':False,'bones':len(rig.data.bones),'boneNames':[b.name for b in rig.data.bones],'triangles':triangles,'vertices':vertices,'materials':palette,'clips':specs,'motionMetrics':metrics,'notes':['Sit ends and holds a floor-seated pose; feet extend forward.','Bow begins and ends in the same standing pose.','Walk/chase stride is approximate; source hand-keyed motion has measurable stance slip.','Palette baked into ordinary flat materials; no texture map required.']}
+(OUT/'actor-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+# Remove source materials/images unused by the derived character before source saving.
+for m in list(bpy.data.materials):
+ if m.users==0:bpy.data.materials.remove(m)
+for im in list(bpy.data.images):
+ if im.users==0 and im.name not in ['Render Result','Viewer Node']:bpy.data.images.remove(im)
+rig['license']='CC0-1.0';rig['source']='Kay Lousberg, KayKit Adventurers 1.0';rig['project']='Noon Rehearsal'
+bpy.ops.object.select_all(action='DESELECT');rig.select_set(True)
+for o in meshes:o.select_set(True)
 bpy.context.view_layer.objects.active=rig
-bpy.ops.export_scene.gltf(filepath=str(OUT/'actor.glb'),export_format='GLB',use_selection=True,
-    export_yup=True,export_animations=True,export_animation_mode='ACTIONS',
-    export_force_sampling=True,export_frame_range=False,export_skins=True,
-    export_morph=False,export_cameras=False,export_lights=False,export_extras=True)
-
-triangles=sum(len(p.vertices)-2 for p in actor.data.polygons)
-manifest={'name':'Noon Actor','version':1,'file':'actor.glb','source':'assets-src/noon-actor.blend',
- 'generator':'scripts/build_character.py','units':'meters','up':'+Y','forward':'+Z','height':1.745,
- 'mesh':'ActorMesh','skeleton':'NoonActor','bones':list(spec.keys()),'boneCount':len(spec),
- 'triangles':triangles,'vertices':len(actor.data.vertices),'materials':list(M.keys()),'clips':clips,
- 'rootMotion':False,'sitNote':'Sit clip lowers hips 0.455 m; keep scene actor origin on ground.',
- 'license':'Original project asset; no external model or motion sources.'}
-(OUT/'actor-manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
-
-# Presentation renders use precisely the exported model source, with no hidden mesh fixes.
-scene.render.engine='CYCLES';scene.cycles.samples=32
-scene.render.resolution_x=720;scene.render.resolution_y=900;scene.render.resolution_percentage=100
-scene.view_settings.view_transform='Standard';scene.view_settings.look='Medium High Contrast' if 'Medium High Contrast' in [] else 'None'
-scene.world.color=(.7,.7,.7)
-world=scene.world;world.use_nodes=True;world.node_tree.nodes['Background'].inputs[0].default_value=(.68,.65,.55,1);world.node_tree.nodes['Background'].inputs[1].default_value=.7
-floor=material('PreviewFloor','F3C641')
-bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-.008)); plane=bpy.context.object;plane.data.materials.append(floor)
-bpy.ops.object.light_add(type='AREA',location=(-3,-4,6));light=bpy.context.object;light.data.energy=350;light.data.shape='DISK';light.data.size=4
-bpy.ops.object.camera_add(location=(3,-6,3));cam=bpy.context.object;scene.camera=cam;cam.data.type='ORTHO';cam.data.ortho_scale=2.3
-def camera_at(location):
-    cam.location=location;direction=Vector((0,0,.84))-cam.location;cam.rotation_euler=direction.to_track_quat('-Z','Y').to_euler()
-
-views=[('front','idle',1,(0,-5,2.2)),('three-quarter','idle',1,(3,-5,2.6)),('side','idle',1,(5,-.1,2.2)),('back','idle',1,(0,5,2.2)),('walk','walk',7,(3,-5,2.6)),('sit','sit',18,(3,-5,2.6)),('bow','bow',38,(3,-5,2.6)),('shrug','shrug',34,(3,-5,2.6))]
-for name,action,frame,loc in views:
-    rig.animation_data.action=actions[action];scene.frame_set(frame);camera_at(loc)
-    scene.render.filepath=str(PREVIEW/f'{name}.png');bpy.ops.render.render(write_still=True)
-print('ACTOR_BUILD_DONE '+json.dumps(manifest))
+bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'noon-actor.blend'),compress=True)
+bpy.ops.export_scene.gltf(filepath=str(OUT/'actor.glb'),export_format='GLB',use_selection=True,export_yup=True,export_animations=True,export_animation_mode='ACTIONS',export_force_sampling=True,export_frame_range=False,export_skins=True,export_morph=False,export_cameras=False,export_lights=False,export_extras=True)
+# Consistent front/side/back and actual animation pose renders.
+scene.render.engine='CYCLES';scene.cycles.samples=32;scene.render.resolution_x=720;scene.render.resolution_y=900;scene.render.resolution_percentage=100
+scene.world.color=(.32,.32,.32);scene.view_settings.view_transform='Standard'
+bpy.ops.mesh.primitive_plane_add(size=200);ground=bpy.context.object;ground.location.z=-.008;gm=bpy.data.materials.new('Preview ground');gm.diffuse_color=linear_hex('D5C4A1');ground.data.materials.append(gm)
+for loc,power,size in [((3,-4,6),430,5),((-3,-2,4),140,4),((0,3,5),260,3)]:
+ bpy.ops.object.light_add(type='AREA',location=loc);o=bpy.context.object;o.data.energy=power;o.data.shape='DISK';o.data.size=size;o.rotation_euler=(Vector((0,0,1))-o.location).to_track_quat('-Z','Y').to_euler()
+bpy.ops.object.camera_add();camera=bpy.context.object;camera.data.type='ORTHO';camera.data.ortho_scale=2.95;scene.camera=camera
+views=[('front','idle',0,(0,-6,2.7)),('side','idle',0,(6,0,2.7)),('back','idle',0,(0,6,2.7)),('three-quarter','idle',0,(3,-6,3)),('walk-contact','walk',0,(3,-6,3)),('walk-pass','walk',9,(3,-6,3)),('walk-lift','walk',24,(3,-6,3)),('chase','chase',6,(3,-6,3)),('sit','sit',66,(3,-6,3)),('rise','rise',21,(3,-6,3)),('bow','bow',36,(3,-6,3)),('shrug','shrug',33,(3,-6,3)),('struggle','struggle',18,(3,-6,3))]
+for name,clip,fr,loc in ([] if os.environ.get('NOON_SKIP_PREVIEWS') else views):
+ set_action(actions[clip]);frame(fr);camera.location=loc;camera.rotation_euler=(Vector((0,0,1.12))-camera.location).to_track_quat('-Z','Y').to_euler();scene.render.filepath=str(PREVIEW/f'{name}.png');bpy.ops.render.render(write_still=True)
+print('ASSET_RESULT',json.dumps(manifest))

@@ -1,0 +1,57 @@
+{
+  "creator": "Kay Lousberg",
+  "creatorWebsite": "https://kaylousberg.com",
+  "pack": "KayKit Adventurers Character Pack 1.0",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "repository": "https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0",
+  "commit": "672074b73ba276876a19e8816ecdc5241817ab47",
+  "selected": "Rogue_Hooded.glb",
+  "upstreamChosenFileVerified": true,
+  "files": [
+    {
+      "file": "Rogue_Hooded.glb",
+      "url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Characters/gltf/Rogue_Hooded.glb",
+      "sha256": "93e6e25213009952276d9cf34f5d96a243767334c66f280db0433ddfabb91545",
+      "bytes": 3597652
+    },
+    {
+      "file": "Mage.glb",
+      "url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Characters/gltf/Mage.glb",
+      "sha256": "cf898585da33fab50c724d31605fb931eb2912e6d2280092141e98ca81ad507d",
+      "bytes": 3589240
+    },
+    {
+      "file": "rogue_texture.png",
+      "url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Characters/gltf/rogue_texture.png",
+      "sha256": "a4032e877c3b91939f5cdbb630349c1998fdbc3211bbd587c111125500fe4cc5",
+      "bytes": 16670
+    },
+    {
+      "file": "mage_texture.png",
+      "url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Characters/gltf/mage_texture.png",
+      "sha256": "ea49f094b960402635fe51db9f1864960c97271b17f2e3554e5aca1b2bbba144",
+      "bytes": 16311
+    },
+    {
+      "file": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/672074b73ba276876a19e8816ecdc5241817ab47/LICENSE.txt",
+      "sha256": "ae322141814056dda0deea7540d74c41d87aee1da319977cd1bd84ee5a923629",
+      "bytes": 891
+    },
+    {
+      "file": "rogue-preview.png",
+      "url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Samples/rogue.png",
+      "sha256": "23f93b3daab995d7997ced62f817c620c69ad6eba2169cbde0ca39b49c7d6818",
+      "bytes": 568255
+    },
+    {
+      "file": "mage-preview.png",
+      "url": "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Samples/mage.png",
+      "sha256": "2a26f62531cd77b6362753f54c5e0be81cecee9f0a0329f42f0469d3a65a237d",
+      "bytes": 625007
+    }
+  ],
+  "derivedSource": "../../noon-actor.blend",
+  "notes": "Only publicly available CC0 GLBs were used. Derived .blend is our editable import/adaptation, not the paid author SOURCE package. Mage was evaluated but is not shipped in the runtime actor."
+}

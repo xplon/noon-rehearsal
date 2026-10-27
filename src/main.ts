@@ -1,5 +1,5 @@
 import './style.css';
-import {Game,SOURCES,HOME,type Frame,type Mode} from './engine';
+import {Game,SOURCES,HOME,mixActor,type Frame,type Mode} from './engine';
 import {StageScene} from './scene';
 import {makeClips,replayFrame,type Clip} from './replay';
 import {Sound} from './audio';
@@ -43,7 +43,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
   </main>
   <footer class="footer"><span>一个关于行动与观看的互动作品</span><span class="footer-center">EST. AT NOON <span>✳</span></span><button id="share-button" class="text-button">邀请另一个人入场 ↗</button></footer>
 </div>
-<dialog id="about-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">入场之前</p><h2>用一小段时间，<br>走进一处庭院。</h2><p>电脑使用方向键或 WASD；手机拖动固定方向盘。游戏不计分，也不需要每一步都照着提示走。</p><p>个人体验约两分钟；剧场演出稍长，适合投影和旁观。两种版本都会完整结束，之后可回看自己的动作。</p><div class="notice"><strong>关于本局记录</strong><p>角色轨迹与操作保存在当前页面，用于结束后的回看。不采集姓名、摄像头或麦克风，不上传游玩记录。分享或展示他人的体验前，请先征得同意。关闭或刷新页面会清除未导出的记录。</p></div><button class="primary dialog-close-action"><span>知道了</span><span>→</span></button></dialog>
+<dialog id="about-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">入场之前</p><h2>用一小段时间，<br>走进一处庭院。</h2><p>电脑使用方向键或 WASD；手机拖动固定方向盘。游戏不计分，也不需要每一步都照着提示走。</p><p>个人体验约两分钟；剧场演出稍长，适合投影和旁观。两种版本都会完整结束，之后可回看自己的动作。</p><div class="notice"><strong>关于本局记录</strong><p>角色轨迹与操作保存在当前页面，用于结束后的回看。不采集姓名、摄像头或麦克风，不上传游玩记录。分享或展示他人的体验前，请先征得同意。关闭或刷新页面会清除未导出的记录。</p></div><p class="asset-credit">角色改编自 <a href="https://kaylousberg.com/game-assets" target="_blank" rel="noopener">Kay Lousberg · KayKit</a>（CC0）。</p><button class="primary dialog-close-action"><span>知道了</span><span>→</span></button></dialog>
 <dialog id="share-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">一人，一场。</p><h2>在你的庭院里见。</h2><canvas id="qr"></canvas><p>扫码进入个人体验</p><button id="copy-button" class="primary"><span>复制入场链接</span><span>↗</span></button></dialog>
 <div id="toast" role="status" aria-live="polite"></div>`;
 
@@ -53,7 +53,7 @@ let game:Game|null=null,view:'lobby'|'play'|'ending'|'review'='lobby',mode:Mode=
 let clips:Clip[]=[],clipIndex=0,replayTime=0,replayPlaying=false,evidence=false;
 let corrections:{t:number;text:string;eventTime?:number}[]=[];
 const keys=new Set<string>();let stick={x:0,y:0};let accumulator=0,last=performance.now(),lobbyTime=0,ready=false,toastTimer=0;
-const lobbyGame=new Game();
+const lobbyGame=new Game();let previousTick:Frame|null=null;
 const time=(t:number)=>`${String(Math.floor(t/60)).padStart(2,'0')}:${String(Math.floor(t%60)).padStart(2,'0')}`;
 function toast(message:string){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=window.setTimeout(()=>$('toast').classList.remove('visible'),3500);}
 function screen(next:typeof view){
@@ -62,7 +62,7 @@ function screen(next:typeof view){
 }
 function start(){
   if(!ready)return;mode=document.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value as Mode;
-  game=new Game(mode);corrections=[];keys.clear();stick={x:0,y:0};accumulator=0;replayPlaying=false;evidence=false;
+  game=new Game(mode,scene.stride,scene.runStride);previousTick=null;corrections=[];keys.clear();stick={x:0,y:0};accumulator=0;replayPlaying=false;evidence=false;
   $('mode-label').textContent=mode==='teacher'?'一场剧场演出':'一场个人试演';scene.setEvidence(game.snapshot(),[],false);screen('play');
   document.title='庭院试演 · 正午排练场';scene.apply(game.snapshot());game.frames[0].visual=scene.capture();sound.chime();
 }
@@ -101,17 +101,17 @@ function animate(now:number){
   if(dt>.5&&view==='play'&&game&&!game.paused)pause('long-frame');
   if(ready){
     if(view==='lobby'){
-      lobbyTime+=Math.min(dt,.05);const frame=lobbyGame.snapshot();frame.t=lobbyTime;frame.body.animTime=lobbyTime;frame.shadow.animTime=lobbyTime;frame.line='';scene.apply(frame);
+      lobbyTime+=Math.min(dt,.05);const frame=lobbyGame.snapshot();frame.t=lobbyTime;frame.body.animTime=lobbyTime;frame.shadow.animTime=lobbyTime;frame.body.clocks.idle=lobbyTime;frame.shadow.clocks.idle=lobbyTime;frame.line='';scene.apply(frame);
     }else if(view==='play'&&game&&!game.paused){
       const direction=input(),world=scene.screenInput(direction.x,direction.y);game.setInput(world.x,world.z);
       const active={up:direction.y<-.1,down:direction.y>.1,left:direction.x<-.1,right:direction.x>.1};
       document.querySelectorAll<HTMLElement>('[data-key]').forEach(el=>el.classList.toggle('active',active[el.dataset.key as keyof typeof active]));
       accumulator+=Math.min(dt,.25);
       while(accumulator>=1/60){
-        const count=game.frames.length;game.step(1/60);accumulator-=1/60;
+        const count=game.frames.length;previousTick=game.snapshot();game.step(1/60);accumulator-=1/60;
         if(game.frames.length>count){const frame=game.frames.at(-1)!;scene.apply(frame);frame.visual=scene.capture();}
       }
-      scene.apply(game.snapshot());$('subtitle').textContent=game.line;$('subtitle').classList.toggle('empty',!game.line);
+      const rendered=game.snapshot();if(previousTick){const alpha=accumulator*60;rendered.body=mixActor(previousTick.body,rendered.body,alpha);rendered.shadow=mixActor(previousTick.shadow,rendered.shadow,alpha);}scene.apply(rendered);$('subtitle').textContent=game.line;$('subtitle').classList.toggle('empty',!game.line);
       sound.step(game.time,game.body.animation==='walk'||game.body.animation==='chase');
       if(game.stage==='ended')endReveal();
     }else if(view==='review'&&game){

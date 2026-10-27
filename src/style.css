@@ -14,3 +14,16 @@ dialog{border:1px solid #30334c50;background:#fff3d8;color:var(--ink);padding:50
 .replay-subtitle{position:absolute;bottom:252px;left:29%;right:5vw;text-align:center;font-family:var(--serif);font-size:15px;line-height:1.7;pointer-events:none;background:#f5e8c9bd}
 @media(max-width:700px){.replay-subtitle{top:442px;bottom:auto;left:24px;right:24px;font-size:12px}}
 @media(max-width:700px){[data-screen="lobby"] #scene-area{top:216px;height:260px}}
+
+/* A dedicated upper narration band keeps the feet, rings and shadows unobstructed. */
+[data-screen="play"] #scene-area,[data-screen="ending"] #scene-area{inset:108px 3vw 70px;height:auto}
+[data-screen="play"] .subtitle{top:43px;bottom:auto;margin:0;max-width:86%;min-height:46px;background:transparent;border:0;font-size:clamp(16px,1.6vw,22px)}
+#scene{min-height:0}
+[data-screen="review"] #scene-area{inset:90px 3vw 270px 26%;height:auto}
+[data-screen="lobby"] #scene-area{inset:15px 1vw 50px 30%}
+@media(max-width:700px){
+  [data-screen="lobby"] #scene-area{inset:216px 4px auto;height:260px}
+  [data-screen="play"] #scene-area,[data-screen="ending"] #scene-area{inset:112px 5px 125px;height:auto}
+  [data-screen="play"] .subtitle{top:36px;bottom:auto;max-width:92%;min-width:0;width:90%;padding:7px 12px;font-size:15px}
+  [data-screen="review"] #scene-area{inset:180px 5px auto;height:260px}
+}

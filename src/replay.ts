@@ -13,7 +13,7 @@ export function makeClips(frames:Frame[],events:Event[]):Clip[]{
   const narration=interpretation??events.find(e=>e.type==='narration');
   return [a,
     ...(t2!==undefined?[clip('熟悉的动作','02 / 具身性',t2,'动作出自刚才的你，但此刻是谁在操作？',demo?'本局有效路线不足，此段是明确标记的系统代演。':'身体播放本局记录的旧路线，当前输入交给影子。')]:[]),
-    ...(t3!==undefined?[clip('谁带着谁走','03 / 审美距离',t3,'从亲手操作到观看自己的动作，距离怎样变了？',stage('reverse')!==undefined?'影子倒放本局最近八秒路线；身体继续追随。':'你直接操作影子，通过影子间接影响身体。')]:[]),
+    ...(t3!==undefined?[clip('谁带着谁走','03 / 审美距离',t3,'从亲手操作到观看自己的动作，距离怎样变了？',stage('reverse')!==undefined?'影子沿本局最近八秒的路线倒序前行，起止经过加减速；身体追随并会合。':'你直接操作影子，通过影子间接影响身体。')]:[]),
     ...(narration?[clip('旁白也会猜错','04 / 反身性',narration.t,'这句话是观察，还是创作者替你写的解释？',interpretation?'触发条件只是输入、位置或时间；台词对动机的解释来自编剧。':'本局没有触发动机调侃。这张卡回看实际出现的指令，不能补造一次调侃。',narration)]:[])
   ];
 }
