@@ -1,0 +1,23 @@
+{
+  "name": "noon-rehearsal",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build --base=./",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/*.test.mjs",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/three": "^0.186.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.1.7"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "three": "^0.186.1"
+  }
+}

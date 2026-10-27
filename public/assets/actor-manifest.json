@@ -1,0 +1,94 @@
+{
+  "name": "Noon Actor",
+  "version": 1,
+  "file": "actor.glb",
+  "source": "assets-src/noon-actor.blend",
+  "generator": "scripts/build_character.py",
+  "units": "meters",
+  "up": "+Y",
+  "forward": "+Z",
+  "height": 1.745,
+  "mesh": "ActorMesh",
+  "skeleton": "NoonActor",
+  "bones": [
+    "root",
+    "hips",
+    "spine",
+    "chest",
+    "neck",
+    "head",
+    "thigh.L",
+    "shin.L",
+    "foot.L",
+    "thigh.R",
+    "shin.R",
+    "foot.R",
+    "arm.L",
+    "forearm.L",
+    "hand.L",
+    "arm.R",
+    "forearm.R",
+    "hand.R",
+    "scarf.1",
+    "scarf.2",
+    "eye.L",
+    "eye.R"
+  ],
+  "boneCount": 22,
+  "triangles": 12252,
+  "vertices": 6468,
+  "materials": [
+    "Cream",
+    "CreamShade",
+    "Skin",
+    "Coral",
+    "CoralShade",
+    "Ink",
+    "Stitch"
+  ],
+  "clips": {
+    "idle": {
+      "seconds": 3.2,
+      "frames": 97,
+      "loop": true
+    },
+    "walk": {
+      "seconds": 0.8,
+      "frames": 25,
+      "loop": true
+    },
+    "chase": {
+      "seconds": 0.6,
+      "frames": 19,
+      "loop": true
+    },
+    "look": {
+      "seconds": 2.4,
+      "frames": 73,
+      "loop": true
+    },
+    "shrug": {
+      "seconds": 2.2,
+      "frames": 67,
+      "loop": false
+    },
+    "sit": {
+      "seconds": 3.2,
+      "frames": 97,
+      "loop": true
+    },
+    "bow": {
+      "seconds": 2.5,
+      "frames": 76,
+      "loop": false
+    },
+    "turn": {
+      "seconds": 1.8,
+      "frames": 55,
+      "loop": false
+    }
+  },
+  "rootMotion": false,
+  "sitNote": "Sit clip lowers hips 0.455 m; keep scene actor origin on ground.",
+  "license": "Original project asset; no external model or motion sources."
+}
