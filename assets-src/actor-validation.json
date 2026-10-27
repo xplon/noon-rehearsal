@@ -1,5 +1,5 @@
 {
-  "bytes": 589500,
+  "bytes": 588820,
   "skins": 1,
   "joints": 42,
   "embeddedOnly": true,
@@ -7,72 +7,86 @@
     "bow": {
       "duration": 2.4,
       "endpointComponentGap": 0.0,
-      "angularVelocitySeamRadPerSec": 0.027394215436688452,
+      "angularVelocitySeamRadPerSec": 0.02739421221867891,
       "linearVelocitySeam": 0,
       "loop": false
     },
     "chase": {
       "duration": 0.8,
       "endpointComponentGap": 0.0,
-      "angularVelocitySeamRadPerSec": 1.7501368254181144e-05,
-      "linearVelocitySeam": 4.470344103228133e-06,
+      "angularVelocitySeamRadPerSec": 1.5357859601744964e-05,
+      "linearVelocitySeam": 1.877545303231288e-05,
       "loop": true
     },
     "idle": {
       "duration": 3.2,
       "endpointComponentGap": 0.0,
-      "angularVelocitySeamRadPerSec": 1.5816016123980188e-05,
-      "linearVelocitySeam": 1.7850942829770663e-06,
+      "angularVelocitySeamRadPerSec": 1.190822470584882e-05,
+      "linearVelocitySeam": 3.5793252655949223e-06,
       "loop": true
     },
     "look": {
       "duration": 2.4,
       "endpointComponentGap": 0.0,
-      "angularVelocitySeamRadPerSec": 1.358044465330357e-06,
+      "angularVelocitySeamRadPerSec": 8.778080877198132e-07,
       "linearVelocitySeam": 0,
       "loop": false
     },
     "rise": {
       "duration": 1.4,
-      "endpointComponentGap": 0.8055779039859772,
-      "angularVelocitySeamRadPerSec": 1.9292113479033848,
-      "linearVelocitySeam": 0.3358393627500925,
+      "endpointComponentGap": 1.8407095670700073,
+      "angularVelocitySeamRadPerSec": 4.395384724622466,
+      "linearVelocitySeam": 0.33584472717143965,
       "loop": false
     },
     "shrug": {
       "duration": 2.2,
       "endpointComponentGap": 0.0,
-      "angularVelocitySeamRadPerSec": 0.08558657240631122,
+      "angularVelocitySeamRadPerSec": 0.08559709270414262,
       "linearVelocitySeam": 0,
       "loop": false
     },
     "sit": {
       "duration": 2.2,
-      "endpointComponentGap": 0.8055778443813324,
-      "angularVelocitySeamRadPerSec": 3.854449308305245,
-      "linearVelocitySeam": 0.40490267549217696,
+      "endpointComponentGap": 1.8407095670700073,
+      "angularVelocitySeamRadPerSec": 4.207943713005626,
+      "linearVelocitySeam": 0.43643472302672964,
       "loop": false
     },
     "struggle": {
       "duration": 2.4,
       "endpointComponentGap": 0.0,
-      "angularVelocitySeamRadPerSec": 2.4234242422351987e-05,
+      "angularVelocitySeamRadPerSec": 1.956628796860156e-05,
       "linearVelocitySeam": 0,
       "loop": true
     },
     "turn": {
       "duration": 1.8,
       "endpointComponentGap": 0.0,
-      "angularVelocitySeamRadPerSec": 0.06693228096322568,
+      "angularVelocitySeamRadPerSec": 0.06693272779411767,
       "linearVelocitySeam": 0,
       "loop": false
     },
     "walk": {
       "duration": 1.066667,
       "endpointComponentGap": 0.0,
-      "angularVelocitySeamRadPerSec": 1.9988203983079508e-05,
-      "linearVelocitySeam": 4.470341230540932e-06,
+      "angularVelocitySeamRadPerSec": 2.5959435787204388e-05,
+      "linearVelocitySeam": 3.576278500005979e-06,
       "loop": true
+    }
+  },
+  "transitions": {
+    "sit->rise": {
+      "maxComponentGap": 0.0,
+      "maxBodyGap": 0.0
+    },
+    "rise->idle": {
+      "maxComponentGap": 0.00448482483625412,
+      "maxBodyGap": 5.364418029785156e-07
+    },
+    "idle->sit": {
+      "maxComponentGap": 0.00448482483625412,
+      "maxBodyGap": 0.0
     }
   }
 }

@@ -67,7 +67,7 @@ export class Game {
     velocity(a,desired,dt);this.constrain(a);
   }
   move(a:Actor,direction:Vec,dt:number,max=MOTION.speed,mark?:Vec){this.drive(a,magnet(a,{x:direction.x*max,z:direction.z*max},mark),dt);}
-  follow(a:Actor,target:Vec,dt:number,max=3.05){
+  follow(a:Actor,target:Vec,dt:number,max=MOTION.followSpeed){
     let aim=target;const dx=target.x-a.x,dz=target.z-a.z,l2=dx*dx+dz*dz;
     const u=clamp(((PLANT.x-a.x)*dx+(PLANT.z-a.z)*dz)/(l2||1),0,1);
     if(u>.01&&u<.99&&dist({x:a.x+dx*u,z:a.z+dz*u},PLANT)<PLANT.radius+.5){
@@ -93,7 +93,7 @@ export class Game {
   settled(a:Actor,target?:Vec,tolerance=.035){return speed(a)<.06&&(!target||dist(a,target)<tolerance);}
   makeDemo(){
     const a=actor(HOME),route=[this.routePoint(a,0)];let t=0,index=0,dwell=0;const marks=[{x:.7,z:1.2},{x:2,z:-.8},HOME];
-    while(index<marks.length&&t<16){this.follow(a,marks[index],1/60,2.15);this.animate(a,speed(a)>.07?'walk':'idle',1/60);t+=1/60;route.push(this.routePoint(a,t));if(this.settled(a,marks[index]))dwell+=1/60;else dwell=0;if(dwell>.35){index++;dwell=0;}}
+    while(index<marks.length&&t<16){this.follow(a,marks[index],1/60,MOTION.demoSpeed);this.animate(a,speed(a)>.07?'walk':'idle',1/60);t+=1/60;route.push(this.routePoint(a,t));if(this.settled(a,marks[index]))dwell+=1/60;else dwell=0;if(dwell>.35){index++;dwell=0;}}
     return route;
   }
   transition(next:Stage,reason='automatic'){
@@ -146,7 +146,7 @@ export class Game {
       this.homeDwell=this.goal&&dist(this.body,HOME)<.25&&speed(this.body)<.25?this.homeDwell+dt:0;
       if(this.homeDwell>.45)this.transition('return','returned-to-home');else if(this.elapsed>=this.config.arrival)this.transition('return','time-limit');
     }else if(this.stage==='return'){
-      this.move(this.shadow,this.input,dt);this.follow(this.body,HOME,dt,3.15);
+      this.move(this.shadow,this.input,dt);this.follow(this.body,HOME,dt,MOTION.catchUpSpeed);
       if(this.settled(this.body,HOME)){this.settleDwell+=dt;}else this.settleDwell=0;
       if(this.settleDwell>.35&&Math.abs(Math.sin((this.body.yaw-this.returnYaw)/2))<.02&&this.elapsed>(this.systemDemo?3.5:0))this.transition('echo');
     }else if(this.stage==='echo'){
@@ -166,14 +166,14 @@ export class Game {
       if(this.leaderStopping){this.restQueued=false;this.bowQueued=false;}
       const hold=this.restQueued||this.bowQueued||this.time<this.riseUntil||this.time<this.bowUntil;
       if(hold){this.drive(this.body,{x:0,z:0},dt);if(this.settled(this.body)){if(this.restQueued){this.restQueued=false;this.restUntil=this.time+2.2;this.riseUntil=this.restUntil+1.4;this.event('body-rest',{duration:2});this.say('您的身体申请了两秒钟离线。','body-rest');}if(this.bowQueued){this.bowQueued=false;this.bowUntil=this.time+2.6;}}}
-      else this.follow(this.body,this.shadow,dt,3.1);
+      else this.follow(this.body,this.shadow,dt,MOTION.followSpeed);
       this.bodySource=this.time<this.riseUntil?'rest':this.time<this.bowUntil?'bow':'follow';
       this.settleDwell=this.leaderStopping&&this.settled(this.shadow)&&this.settled(this.body,this.shadow)?this.settleDwell+dt:0;
       if(this.settleDwell>0)this.shadowAttachment=smooth(this.settleDwell/.65);
       if(this.settleDwell>=.65){this.shadow=copy(this.body);this.event('actors-met',{distance:0});this.transition(this.mode==='teacher'?'reverse':'rejoin');}
     }else if(this.stage==='reverse'){
       if(!this.reverseStarted){
-        this.drive(this.shadow,{x:0,z:0},dt);this.follow(this.body,this.shadow,dt,3.15);
+        this.drive(this.shadow,{x:0,z:0},dt);this.follow(this.body,this.shadow,dt,MOTION.catchUpSpeed);
         if(this.settled(this.shadow)){
           this.reverseRoute=[...this.shadowRoute.filter(p=>p.t>=this.time-8),this.routePoint(this.shadow,this.time)];
           this.reversePath=[];this.reverseLength=0;
@@ -182,7 +182,7 @@ export class Game {
             if(previous){const segment=dist(previous,point);if(segment<.003)continue;this.reverseLength+=segment;}
             this.reversePath.push({distance:this.reverseLength,point});
           }
-          this.reverseDuration=Math.max(2,this.reverseLength/2.25+1.25);this.reverseStarted=true;this.reverseClock=0;this.shadowSource='reverse';
+          this.reverseDuration=Math.max(2,this.reverseLength/MOTION.reverseSpeed+1.25);this.reverseStarted=true;this.reverseClock=0;this.shadowSource='reverse';
           this.event('reverse-start',{duration:this.reverseDuration,length:this.reverseLength,retiming:'arc-length with eased start and stop',sourceWindow:8});
         }
       }else if(this.reverseClock<this.reverseDuration){
@@ -192,23 +192,23 @@ export class Game {
         const index=this.reversePath.indexOf(right),left=this.reversePath[Math.max(0,index-1)];
         const f=right.distance>left.distance?(distance-left.distance)/(right.distance-left.distance):0;
         const p={x:left.point.x+(right.point.x-left.point.x)*f,z:left.point.z+(right.point.z-left.point.z)*f};
-        this.follow(this.shadow,p,dt,3.15);recordedShadow=false;
-        this.follow(this.body,this.shadow,dt,3.15);
+        this.follow(this.shadow,p,dt,MOTION.catchUpSpeed);recordedShadow=false;
+        this.follow(this.body,this.shadow,dt,MOTION.catchUpSpeed);
         if(this.reverseClock>3)this.once('reverse-reveal',()=>this.say('影子把你刚才的意思，当成了现在的命令。','reverse-reveal'));
       }else{
-        this.follow(this.shadow,this.reversePath.at(-1)!.point,dt,3.15);this.follow(this.body,this.shadow,dt,3.15);
+        this.follow(this.shadow,this.reversePath.at(-1)!.point,dt,MOTION.catchUpSpeed);this.follow(this.body,this.shadow,dt,MOTION.catchUpSpeed);
         this.settleDwell=this.settled(this.shadow)&&this.settled(this.body,this.shadow)?this.settleDwell+dt:0;
         if(this.settleDwell>0)this.shadowAttachment=smooth(this.settleDwell/.65);
         if(this.settleDwell>=.65){this.shadow=copy(this.body);this.event('actors-met',{distance:0});this.transition('rejoin');}
       }
     }else if(this.stage==='rejoin'){
       this.move(this.body,this.input,dt,MOTION.speed,EXIT);
-      this.follow(this.shadow,this.body,dt,3.4);
+      this.follow(this.shadow,this.body,dt,MOTION.attachSpeed);
       if(!active&&this.settled(this.body)&&this.settled(this.shadow,this.body,.012)){this.reconnected=true;this.shadowSource='attached';}
       if(this.elapsed>=2)this.once('rejoin-reveal',()=>this.say('可以再试着走一步。出口这次真的准备好了。','exit-instruction'));
       if(this.elapsed>3&&dist(this.body,EXIT)<.55&&speed(this.body)<.4)this.finish('exit');else if(this.elapsed>=this.config.rejoin)this.finish(this.idle>6?'stillness':'lingering');
     }else if(this.stage==='curtain'){
-      this.drive(this.body,{x:0,z:0},dt);this.follow(this.shadow,this.body,dt,3.4);
+      this.drive(this.body,{x:0,z:0},dt);this.follow(this.shadow,this.body,dt,MOTION.attachSpeed);
       if(this.settled(this.body)&&this.settled(this.shadow,this.body,.012))this.shadowAttachment=Math.min(1,this.shadowAttachment+dt/.65);
       if(!this.curtainActing&&this.shadowAttachment===1&&this.settled(this.body)&&this.settled(this.shadow,this.body,.012)){this.curtainActing=true;this.curtainClock=0;this.event('curtain-united',{distance:dist(this.body,this.shadow)});}
       if(this.curtainActing){this.curtainClock+=dt;if(this.curtainClock>=3.6){this.stage='ended';this.event('title-reveal');}}
@@ -237,7 +237,7 @@ export class Game {
   }
   snapshot():Frame{return {t:this.time,stage:this.stage,elapsed:this.elapsed,body:copy(this.body),shadow:copy(this.shadow),shadowAttachment:this.shadowAttachment,input:{...this.input},target:this.target,bodySource:this.bodySource,shadowSource:this.shadowSource,line:this.line,lineId:this.lineId,goal:this.goal,mode:this.mode,ending:this.ending};}
   record(){this.frames.push(this.snapshot());}
-  export(){return {schemaVersion:3,build:'0.3.0',assetVersion:'actor-2',mode:this.mode,duration:this.time,systemDemo:this.systemDemo,ending:this.ending,events:this.events,frames:this.frames};}
+  export(){return {schemaVersion:3,build:'0.3.1',assetVersion:'actor-3',mode:this.mode,duration:this.time,systemDemo:this.systemDemo,ending:this.ending,events:this.events,frames:this.frames};}
 }
 export function frameAt(frames:Frame[],time:number):Frame {
   let lo=0,hi=frames.length-1;while(lo<hi){const m=Math.ceil((lo+hi)/2);if(frames[m].t<=time)lo=m;else hi=m-1;}

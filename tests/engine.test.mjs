@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game,HOME,EXIT,PLANT,dist,routeAt,frameAt} from '../src/engine.ts';
+import {MOTION} from '../src/motion.ts';
 
 function run(game,seconds,input=()=>({x:0,z:0})){for(let i=0;i<seconds*60;i++){const p=input(game,i);game.setInput(p.x,p.z);game.step(1/60);}}
 function until(game,stage,max=240,input=()=>({x:0,z:0})){for(let i=0;i<max*60&&game.stage!==stage;i++){const p=input(game,i);game.setInput(p.x,p.z);game.step(1/60);}assert.equal(game.stage,stage);}
@@ -51,13 +52,13 @@ test('press, reverse, release and facing obey continuous motion limits',()=>{
   maxTurnA=Math.max(maxTurnA,Math.abs(g.body.yawVelocity-previous.yawVelocity)*60);
   if(i===0)assert(g.body.vx<.03);previous={...g.body};
  }
- assert(maxA<=10.001);assert(maxTurn<=4.801);assert(maxTurnA<=16.001);assert(Math.hypot(g.body.vx,g.body.vz)<.01);
+ assert(maxA<=MOTION.acceleration+.001);assert(maxTurn<=4.801);assert(maxTurnA<=16.001);assert(Math.hypot(g.body.vx,g.body.vz)<.01);
 });
 test('ring gently settles the actor but intentional movement can leave',()=>{
- const g=new Game();g.goal=true;g.body.x=HOME.x+.45;g.body.z=HOME.z+.2;g.move(g.body,{x:0,z:0},1/60,2.65,HOME);
- const start=dist(g.body,HOME);for(let i=0;i<180;i++)g.move(g.body,{x:0,z:0},1/60,2.65,HOME);
+ const g=new Game();g.goal=true;g.body.x=HOME.x+.45;g.body.z=HOME.z+.2;g.move(g.body,{x:0,z:0},1/60,MOTION.speed,HOME);
+ const start=dist(g.body,HOME);for(let i=0;i<180;i++)g.move(g.body,{x:0,z:0},1/60,MOTION.speed,HOME);
  assert(dist(g.body,HOME)<.01);assert(start>.4);
- for(let i=0;i<90;i++)g.move(g.body,{x:1,z:0},1/60,2.65,HOME);
+ for(let i=0;i<90;i++)g.move(g.body,{x:1,z:0},1/60,MOTION.speed,HOME);
  assert(dist(g.body,HOME)>1.5);
 });
 test('returning to the white mark has a short dwell, not an 18-second gate',()=>{

@@ -4,3 +4,6 @@ dist/
 artifacts/
 *.local
 *.blend1
+__pycache__/
+*.pyc
+assets-src/previews/proportion-probe-*.png

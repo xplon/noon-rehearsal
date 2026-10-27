@@ -1,11 +1,12 @@
 """Adapt the CC0 KayKit Hooded Rogue to Noon Rehearsal.
 
-Requires Blender 4.5. Original geometry/skin and locomotion are Kay Lousberg's.
+Requires Blender 4.5. Original topology, body skin and source animation are Kay Lousberg's.
 Our changes: palette materials, unused-item removal, selected/resampled clips,
-five scene-specific acting clips, and subtle deforming cape follow-through.
+five scene-specific acting clips, a 4.5-head proportion reshape with limb
+retargeting, and a real deforming cape with a seated fold.
 Blender Z-up/-Y forward -> GLB Y-up/+Z forward. See vendor/kaykit/LICENSE.txt.
 """
-import bpy, math, json, hashlib, os
+import bpy, math, json, hashlib, os, sys
 from pathlib import Path
 from mathutils import Vector, Quaternion, Matrix
 ROOT=Path(__file__).resolve().parents[1]
@@ -20,12 +21,30 @@ for t in list(rig.animation_data.nla_tracks):rig.animation_data.nla_tracks.remov
 for o in list(scene.objects):
  if o.type=='MESH' and not o.name.startswith('Rogue_'):bpy.data.objects.remove(o,do_unlink=True)
 meshes=[o for o in scene.objects if o.type=='MESH'];old_actions={a.name:a for a in bpy.data.actions}
+source_vertices={o.name:[v.co.copy() for v in o.data.vertices] for o in meshes}
+source_centers={o.name:[sum((o.data.vertices[i].co for i in p.vertices),Vector())/len(p.vertices) for p in o.data.polygons] for o in meshes}
+# Imported cape is rigid bone-parented. Convert it to real chest skin before
+# reshaping so the added cape.tip control actually deforms its vertices.
+rig.data.pose_position='REST';bpy.context.view_layer.update()
+for o in meshes:
+ if o.parent_type=='BONE':
+  bone=o.parent_bone;transform=rig.matrix_world.inverted()@o.matrix_world
+  for v in o.data.vertices:v.co=transform@v.co
+  o.parent_type='OBJECT';o.parent_bone='';o.matrix_parent_inverse=Matrix.Identity(4);o.matrix_basis=Matrix.Identity(4)
+  for g in list(o.vertex_groups):o.vertex_groups.remove(g)
+  g=o.vertex_groups.new(name=bone);g.add(list(range(len(o.data.vertices))),1,'REPLACE')
+  modifier=o.modifiers.new('Character skin','ARMATURE');modifier.object=rig
+rig.data.pose_position='POSE';bpy.context.view_layer.update()
 
 def set_action(action):
  rig.animation_data.action=action
  if action.slots:rig.animation_data.action_slot=action.slots[0]
 def frame(value):scene.frame_set(int(value),subframe=value%1);bpy.context.view_layer.update()
-def snapshot():return {p.name:(p.location.copy(),p.rotation_quaternion.copy(),p.scale.copy()) for p in rig.pose.bones}
+world_poses={}
+def snapshot():
+ pose={p.name:(p.location.copy(),p.rotation_quaternion.copy(),p.scale.copy()) for p in rig.pose.bones}
+ world_poses[id(pose)]={p.name:p.matrix.copy() for p in rig.pose.bones}
+ return pose
 def apply_pose(pose):
  for n,(loc,rot,scale) in pose.items():
   p=rig.pose.bones[n];p.rotation_mode='QUATERNION';p.location=loc;p.rotation_quaternion=rot;p.scale=scale
@@ -60,17 +79,23 @@ for name,spec in specs.items():
    for i in range(n):frame(a.frame_range[1]*min(1,(i/FPS)/1.4));source_samples[name].append(snapshot())
   else:source_samples[name]=sample_source(spec['source'],n)
 rig.animation_data.action=None
+sys.path.insert(0,str(SOURCE))
+from retarget_proportions import reshape
+base,source_samples,proportions=reshape(rig,meshes,base,source_samples,world_poses)
 for a in list(bpy.data.actions):bpy.data.actions.remove(a)
 apply_pose(base)
+stand_hips_height=rig.pose.bones['hips'].head.z
 # One additional weighted cape control; geometry and original body skin remain intact.
 bpy.context.view_layer.objects.active=rig;rig.select_set(True);bpy.ops.object.mode_set(mode='EDIT')
-b=rig.data.edit_bones.new('cape.tip');b.head=(0,.18,1.10);b.tail=(0,.35,.40);b.parent=rig.data.edit_bones['chest'];b.use_deform=True
+cape=next(o for o in meshes if o.name=='Rogue_Cape')
+cz=[v.co.z for v in cape.data.vertices];cape_top=max(cz);cape_bottom=min(cz)
+b=rig.data.edit_bones.new('cape.tip');b.head=(0,.18,cape_top);b.tail=(0,.35,cape_bottom);b.parent=rig.data.edit_bones['chest'];b.use_deform=True
 bpy.ops.object.mode_set(mode='OBJECT')
 cape=next(o for o in meshes if o.name=='Rogue_Cape')
 for g in list(cape.vertex_groups):cape.vertex_groups.remove(g)
 g_top=cape.vertex_groups.new(name='chest');g_tip=cape.vertex_groups.new(name='cape.tip')
 for v in cape.data.vertices:
- w=max(0,min(1,(1.10-v.co.z)/.75));w=w*w*(3-2*w);g_tip.add([v.index],w,'REPLACE');g_top.add([v.index],1-w,'REPLACE')
+ w=max(0,min(1,(cape_top-v.co.z)/(cape_top-cape_bottom)));w=w*w*(3-2*w);g_tip.add([v.index],w,'REPLACE');g_top.add([v.index],1-w,'REPLACE')
 base['cape.tip']=(Vector((0,0,0)),Quaternion((1,0,0,0)),Vector((1,1,1)))
 for poses in source_samples.values():
  for pose in poses:pose['cape.tip']=base['cape.tip']
@@ -95,15 +120,24 @@ for o in meshes:
    c='Coral' if o.name=='Rogue_Body' and g>1.5*b else 'Ivory'
   elif max(r,g,b)<.32:c='Ink'
   elif max(r,g,b)-min(r,g,b)<.16:c='Brass'
+  elif 'Leg' in o.name:c='Ink'
   elif r>.84 and g>.58:c='Face'
   elif 'Head' in o.name:c='Ink'
   elif 'Leg' in o.name:c='Ink'
   else:c='Leather'
+  center=source_centers[o.name][p.index]
+  if o.name=='Rogue_Body' and c=='Ivory' and center.z>1.075 and center.y<-.10 and abs(center.x)<.245:c='Coral'
   categories.append(c)
  o.data.materials.clear()
  for m in materials.values():o.data.materials.append(m)
  keys=list(materials)
  for p,c in zip(o.data.polygons,categories):p.material_index=keys.index(c)
+ if o.name=='Rogue_Body':
+  collar_vertices={i for p,c in zip(o.data.polygons,categories) if c=='Coral' for i in p.vertices}
+  for v in o.data.vertices:
+   source=source_vertices[o.name][v.index]
+   if v.index in collar_vertices and source.y<-.06 and source.z>1.05:
+    v.co.y-=.075*min(1,(source.z-1.05)/.08)
  o['source']='KayKit Adventurers 1.0 / Kay Lousberg / CC0'
 # Pose additions use rotations about armature-space axes, transformed to each local basis.
 def rotate(name,axis,angle):
@@ -130,6 +164,9 @@ for name,spec in specs.items():
    s=math.sin(2*math.pi*u);c=math.cos(2*math.pi*u);rotate('spine',(1,0,0),.11+.05*s);rotate('chest',(0,1,0),.06*c)
    rotate('head',(1,0,0),-.06-.04*s);rotate('upperarm.l',(1,0,0),-.16-.08*s);rotate('upperarm.r',(1,0,0),-.16+.08*s)
    rotate('upperarm.l',(0,1,0),-.13);rotate('upperarm.r',(0,1,0),.13);rotate('lowerarm.l',(1,0,0),-.25-.09*s);rotate('lowerarm.r',(1,0,0),-.25+.09*s)
+  if name in ['sit','rise']:
+   seated=max(0,min(1,(stand_hips_height-rig.pose.bones['hips'].head.z)/(stand_hips_height-.07)))
+   rotate('cape.tip',(1,0,0),1.0*seated)
   # Small delayed cloth response. Loop endpoints and tangents coincide analytically.
   amp=.042 if name=='walk' else .065 if name=='chase' else .014
   if spec['loop']:rotate('cape.tip',(1,0,0),amp*math.sin(2*math.pi*u-.7));rotate('cape.tip',(0,1,0),amp*.35*math.sin(2*math.pi*u))
@@ -174,8 +211,13 @@ set_action(actions['idle']);frame(0)
 deps=bpy.context.evaluated_depsgraph_get();verts=[o.matrix_world@v.co for o in meshes for v in o.evaluated_get(deps).data.vertices]
 bounds={k:[round(min(v[i] for v in verts),6),round(max(v[i] for v in verts),6)] for i,k in enumerate(['x','depth','height'])}
 height=bounds['height'][1]-bounds['height'][0]
+head_mesh=next(o for o in meshes if o.name=='Rogue_Head_Hooded').evaluated_get(deps)
+head_z=[(head_mesh.matrix_world@v.co).z for v in head_mesh.data.vertices]
+proportions['visibleHoodHeight']=max(head_z)-min(head_z);proportions['standingHeightToHoodRatio']=height/proportions['visibleHoodHeight']
+for n in ['walk','chase']:
+ specs[n]['strideLength']=round(metrics[n]['stanceFitCycleDistance'],3)
 triangles=sum(len(p.vertices)-2 for o in meshes for p in o.data.polygons);vertices=sum(len(o.data.vertices) for o in meshes)
-manifest={'name':'Noon Traveler','assetVersion':2,'source':'KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg','license':'CC0-1.0','sourceCommit':'672074b73ba276876a19e8816ecdc5241817ab47','height':round(height,6),'groundOffset':bounds['height'][0],'bounds':bounds,'forward':'+Z','up':'+Y','rootMotion':False,'bones':len(rig.data.bones),'boneNames':[b.name for b in rig.data.bones],'triangles':triangles,'vertices':vertices,'materials':palette,'clips':specs,'motionMetrics':metrics,'notes':['Sit ends and holds a floor-seated pose; feet extend forward.','Bow begins and ends in the same standing pose.','Walk/chase stride is approximate; source hand-keyed motion has measurable stance slip.','Palette baked into ordinary flat materials; no texture map required.']}
+manifest={'name':'Noon Traveler','assetVersion':3,'proportions':proportions,'source':'KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg','license':'CC0-1.0','sourceCommit':'672074b73ba276876a19e8816ecdc5241817ab47','height':round(height,6),'groundOffset':bounds['height'][0],'bounds':bounds,'forward':'+Z','up':'+Y','rootMotion':False,'bones':len(rig.data.bones),'boneNames':[b.name for b in rig.data.bones],'triangles':triangles,'vertices':vertices,'materials':palette,'clips':specs,'motionMetrics':metrics,'notes':['Sit ends and holds a floor-seated pose; feet extend forward.','Bow begins and ends in the same standing pose.','Walk/chase stride is approximate; source hand-keyed motion has measurable stance slip.','Palette baked into ordinary flat materials; no texture map required.']}
 (OUT/'actor-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 # Remove source materials/images unused by the derived character before source saving.
 for m in list(bpy.data.materials):
@@ -194,8 +236,8 @@ scene.world.color=(.32,.32,.32);scene.view_settings.view_transform='Standard'
 bpy.ops.mesh.primitive_plane_add(size=200);ground=bpy.context.object;ground.location.z=-.008;gm=bpy.data.materials.new('Preview ground');gm.diffuse_color=linear_hex('D5C4A1');ground.data.materials.append(gm)
 for loc,power,size in [((3,-4,6),430,5),((-3,-2,4),140,4),((0,3,5),260,3)]:
  bpy.ops.object.light_add(type='AREA',location=loc);o=bpy.context.object;o.data.energy=power;o.data.shape='DISK';o.data.size=size;o.rotation_euler=(Vector((0,0,1))-o.location).to_track_quat('-Z','Y').to_euler()
-bpy.ops.object.camera_add();camera=bpy.context.object;camera.data.type='ORTHO';camera.data.ortho_scale=2.95;scene.camera=camera
+bpy.ops.object.camera_add();camera=bpy.context.object;camera.data.type='ORTHO';camera.data.ortho_scale=height*(2.95/2.238505);scene.camera=camera
 views=[('front','idle',0,(0,-6,2.7)),('side','idle',0,(6,0,2.7)),('back','idle',0,(0,6,2.7)),('three-quarter','idle',0,(3,-6,3)),('walk-contact','walk',0,(3,-6,3)),('walk-pass','walk',9,(3,-6,3)),('walk-lift','walk',24,(3,-6,3)),('chase','chase',6,(3,-6,3)),('sit','sit',66,(3,-6,3)),('rise','rise',21,(3,-6,3)),('bow','bow',36,(3,-6,3)),('shrug','shrug',33,(3,-6,3)),('struggle','struggle',18,(3,-6,3))]
 for name,clip,fr,loc in ([] if os.environ.get('NOON_SKIP_PREVIEWS') else views):
- set_action(actions[clip]);frame(fr);camera.location=loc;camera.rotation_euler=(Vector((0,0,1.12))-camera.location).to_track_quat('-Z','Y').to_euler();scene.render.filepath=str(PREVIEW/f'{name}.png');bpy.ops.render.render(write_still=True)
+ set_action(actions[clip]);frame(fr);camera.location=Vector(loc)*(height/2.238505);camera.rotation_euler=(Vector((0,0,height*.5))-camera.location).to_track_quat('-Z','Y').to_euler();scene.render.filepath=str(PREVIEW/f'{name}.png');bpy.ops.render.render(write_still=True)
 print('ASSET_RESULT',json.dumps(manifest))

@@ -7,6 +7,6 @@ export class Sound {
     g.gain.setValueAtTime(.0001,c.currentTime);g.gain.exponentialRampToValueAtTime(volume,c.currentTime+.008);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+duration);
     o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+duration+.02);
   }
-  step(t:number,moving:boolean){if(!moving)return;const beat=Math.floor(t*4);if(beat!==this.lastStep){this.lastStep=beat;this.tone(beat%2?155:175,.07,.008,'triangle');}}
+  step(gaitPhase:number,moving:boolean){const beat=Math.floor(gaitPhase*2);if(!moving){this.lastStep=beat;return;}if(beat!==this.lastStep){this.lastStep=beat;this.tone(beat%2?155:175,.07,.008,'triangle');}}
   chime(){this.tone(440,.8,.015);setTimeout(()=>this.tone(660,.9,.009),160);}
 }

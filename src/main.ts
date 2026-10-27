@@ -112,7 +112,7 @@ function animate(now:number){
         if(game.frames.length>count){const frame=game.frames.at(-1)!;scene.apply(frame);frame.visual=scene.capture();}
       }
       const rendered=game.snapshot();if(previousTick){const alpha=accumulator*60;rendered.body=mixActor(previousTick.body,rendered.body,alpha);rendered.shadow=mixActor(previousTick.shadow,rendered.shadow,alpha);}scene.apply(rendered);$('subtitle').textContent=game.line;$('subtitle').classList.toggle('empty',!game.line);
-      sound.step(game.time,game.body.animation==='walk'||game.body.animation==='chase');
+      sound.step(game.body.gaitPhase,game.body.animation==='walk'||game.body.animation==='chase');
       if(game.stage==='ended')endReveal();
     }else if(view==='review'&&game){
       if(replayPlaying){replayTime=Math.min(clips[clipIndex].end,replayTime+Math.min(dt,.1));if(replayTime>=clips[clipIndex].end){replayPlaying=false;$('replay-play').textContent='▷';}}

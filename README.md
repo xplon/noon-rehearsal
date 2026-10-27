@@ -28,7 +28,7 @@ npm run dev
 ## 实现与资产
 
 - Three.js + TypeScript + Vite；固定正交镜头，定制色阶、结构线、原角色网格投影。
-- KayKit Hooded Rogue（Kay Lousberg，CC0）改编角色：42 根骨骼、10 段动作、约 0.59 MB GLB。保留来源、许可、可编辑 `.blend`、改编脚本与检查图。
+- KayKit Hooded Rogue（Kay Lousberg，CC0）改编角色：约 4.5 头身，保留原动作节奏并重新匹配较长的四肢；42 根骨骼、10 段动作、约 0.59 MB GLB。保留来源、许可、可编辑 `.blend`、改编脚本与检查图。
 - 庭院为可编辑的程序化三维场景；背景、模型与声音均无运行时外部素材请求。上方字幕与舞台分区，镜头按建筑实际边界完整取景。
 - Noto Serif SC / Noto Sans SC 本地字体子集，许可证随字体分发。
 - 60 Hz 逻辑、30 Hz 状态与最终关节变换采样；回看的位置与旋转插值。

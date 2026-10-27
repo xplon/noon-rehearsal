@@ -1,23 +1,151 @@
 {
   "name": "Noon Traveler",
-  "assetVersion": 2,
+  "assetVersion": 3,
+  "proportions": {
+    "method": "Region proportions baked into rest mesh and skeleton; source torso acting and foot orientation retained, legs solved with two-bone IK, upper-arm swing reduced; per-frame sole support correction.",
+    "jointScaleFactors": {
+      "hips": [
+        0.800000011920929,
+        1.0,
+        0.75
+      ],
+      "spine": [
+        0.7599999904632568,
+        1.2300000190734863,
+        0.7200000286102295
+      ],
+      "chest": [
+        0.7799999713897705,
+        1.2000000476837158,
+        0.7200000286102295
+      ],
+      "upperarm.l": [
+        0.7799999713897705,
+        1.5,
+        0.7799999713897705
+      ],
+      "lowerarm.l": [
+        0.699999988079071,
+        1.5,
+        0.699999988079071
+      ],
+      "wrist.l": [
+        0.6800000071525574,
+        0.6800000071525574,
+        0.6800000071525574
+      ],
+      "hand.l": [
+        0.6800000071525574,
+        0.6800000071525574,
+        0.6800000071525574
+      ],
+      "upperarm.r": [
+        0.7799999713897705,
+        1.5,
+        0.7799999713897705
+      ],
+      "lowerarm.r": [
+        0.699999988079071,
+        1.5,
+        0.699999988079071
+      ],
+      "wrist.r": [
+        0.6800000071525574,
+        0.6800000071525574,
+        0.6800000071525574
+      ],
+      "hand.r": [
+        0.6800000071525574,
+        0.6800000071525574,
+        0.6800000071525574
+      ],
+      "head": [
+        0.5600000023841858,
+        0.5600000023841858,
+        0.5600000023841858
+      ],
+      "upperleg.l": [
+        0.7799999713897705,
+        3.0,
+        0.7799999713897705
+      ],
+      "lowerleg.l": [
+        0.7200000286102295,
+        3.0,
+        0.7200000286102295
+      ],
+      "foot.l": [
+        0.7799999713897705,
+        0.7799999713897705,
+        0.7799999713897705
+      ],
+      "toes.l": [
+        0.7799999713897705,
+        0.7799999713897705,
+        0.7799999713897705
+      ],
+      "upperleg.r": [
+        0.7799999713897705,
+        3.0,
+        0.7799999713897705
+      ],
+      "lowerleg.r": [
+        0.7200000286102295,
+        3.0,
+        0.7200000286102295
+      ],
+      "foot.r": [
+        0.7799999713897705,
+        0.7799999713897705,
+        0.7799999713897705
+      ],
+      "toes.r": [
+        0.7799999713897705,
+        0.7799999713897705,
+        0.7799999713897705
+      ]
+    },
+    "headScale": 0.56,
+    "locomotionTarget": {
+      "walkFootHorizontalScale": 1.6,
+      "chaseFootHorizontalScale": 1.35,
+      "walkFootLiftScale": 0.6,
+      "chaseFootLiftScale": 0.85,
+      "hipBounceScale": 1.25,
+      "upperArmMotionBlend": 0.58,
+      "standingArmAdductionRad": 0.13,
+      "seatedHipTarget": 0.07,
+      "legSolve": "two-bone IK with original knee pole and original foot rotation"
+    },
+    "upperLegLengthScale": 3.0,
+    "lowerLegLengthScale": 3.0,
+    "upperArmLengthScale": 1.5,
+    "lowerArmLengthScale": 1.5,
+    "bellyWidthReduction": 0.08,
+    "bindGroundRaise": 0.7160953283309937,
+    "supportSamples": 266,
+    "maxWalkSupportError": 0.0,
+    "maxIdleSupportError": 0.0,
+    "visibleHoodHeight": 0.5890340805053711,
+    "standingHeightToHoodRatio": 4.4984527851539795
+  },
   "source": "KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg",
   "license": "CC0-1.0",
   "sourceCommit": "672074b73ba276876a19e8816ecdc5241817ab47",
-  "height": 2.238505,
-  "groundOffset": -0.000864,
+  "height": 2.649742,
+  "groundOffset": -0.0,
   "bounds": {
     "x": [
-      -0.651587,
-      0.669043
+      -0.640365,
+      0.656293
     ],
     "depth": [
-      -0.588976,
-      0.567293
+      -0.329826,
+      0.317684
     ],
     "height": [
-      -0.000864,
-      2.237641
+      -0.0,
+      2.649742
     ]
   },
   "forward": "+Z",
@@ -89,14 +217,14 @@
       "source": "Walking_A",
       "duration": 1.066667,
       "loop": true,
-      "strideLength": 1.0,
+      "strideLength": 1.637,
       "frames": 33
     },
     "chase": {
       "source": "Running_B",
       "duration": 0.8,
       "loop": true,
-      "strideLength": 2.48,
+      "strideLength": 3.634,
       "phaseOffset": 0.0625,
       "frames": 25
     },
@@ -146,28 +274,28 @@
   },
   "motionMetrics": {
     "idle": {
-      "hipVerticalRange": 0.024044,
+      "hipVerticalRange": 0.029857,
       "rootHorizontalRange": 0.0,
       "footLoopGap": 0.0,
-      "feetMotionRange": 1.6e-05
+      "feetMotionRange": 0.000196
     },
     "walk": {
-      "hipVerticalRange": 0.054495,
+      "hipVerticalRange": 0.039685,
       "rootHorizontalRange": 0.0,
       "footLoopGap": 0.0,
-      "feetMotionRange": 0.383467,
-      "stanceFitSpeed": 0.958786,
-      "stanceHorizontalResidualRange": 0.068272,
-      "stanceFitCycleDistance": 1.022705
+      "feetMotionRange": 0.613519,
+      "stanceFitSpeed": 1.53474,
+      "stanceHorizontalResidualRange": 0.109645,
+      "stanceFitCycleDistance": 1.637056
     },
     "chase": {
-      "hipVerticalRange": 0.079238,
+      "hipVerticalRange": 0.087206,
       "rootHorizontalRange": 0.0,
       "footLoopGap": 0.0,
-      "feetMotionRange": 0.615586,
-      "stanceFitSpeed": 3.363899,
-      "stanceHorizontalResidualRange": 0.066025,
-      "stanceFitCycleDistance": 2.691119
+      "feetMotionRange": 0.821717,
+      "stanceFitSpeed": 4.542176,
+      "stanceHorizontalResidualRange": 0.089225,
+      "stanceFitCycleDistance": 3.633741
     },
     "struggle": {
       "hipVerticalRange": 0.0,
@@ -176,16 +304,16 @@
       "feetMotionRange": 0.0
     },
     "sit": {
-      "hipVerticalRange": 0.308724,
+      "hipVerticalRange": 1.038796,
       "rootHorizontalRange": 0.0,
-      "footLoopGap": 0.49738258,
-      "feetMotionRange": 0.497539
+      "footLoopGap": 1.26729508,
+      "feetMotionRange": 1.267296
     },
     "rise": {
-      "hipVerticalRange": 0.308724,
+      "hipVerticalRange": 1.038796,
       "rootHorizontalRange": 0.0,
-      "footLoopGap": 0.49738264,
-      "feetMotionRange": 0.497383
+      "footLoopGap": 1.26729508,
+      "feetMotionRange": 1.267295
     },
     "bow": {
       "hipVerticalRange": 0.0,

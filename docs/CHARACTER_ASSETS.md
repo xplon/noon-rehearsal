@@ -1,69 +1,105 @@
-# 主角资产与动画
+# 主角资产与动画（v3）
 
-当前主角使用 **Kay Lousberg 的 KayKit Adventurers 1.0 / Hooded Rogue**，许可为 **CC0 1.0**。保留了现成角色的网格、蒙皮与专业步态；这不是原创角色模型。我们去掉武器，将图集颜色转换为奶油白衣帽、珊瑚领巾/披风、靛蓝靴子等六种纯色材质，并制作项目需要的表演动作。没有使用付费 EXTRA 或 SOURCE 包。
+当前主角仍采用 **Kay Lousberg 的 KayKit Adventurers 1.0 / Hooded Rogue**，许可为 **CC0 1.0**。保留现成资产的拓扑、身体蒙皮与动作素材，再改为修长的舞台旅人比例。没有换角色主题，也没有使用付费 EXTRA 或 SOURCE 包。
 
 - 官方仓库：https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0
 - 固定版本：`672074b73ba276876a19e8816ecdc5241817ab47`
 - 创作者：https://kaylousberg.com
-- 许可原文：`assets-src/vendor/kaykit/LICENSE.txt`
-- 来源 URL、文件 SHA-256：`assets-src/vendor/kaykit/PROVENANCE.json`
+- 原始许可：`assets-src/vendor/kaykit/LICENSE.txt`
+- 来源 URL、SHA-256：`assets-src/vendor/kaykit/PROVENANCE.json`
 
-同时实际导入、渲染比较了免费 Mage。Hooded Rogue 的兜帽开口、脸部、靴子、披风更适合当前游戏的角色与影子辨认；Mage 的巨大帽檐遮挡脸部、改变影子重心。因此采用 Hooded Rogue。原始两个 GLB 和候选预览都保留在 `assets-src/vendor/kaykit/` 与 `assets-src/previews/`。
+之前实际导入、渲染比较了免费 Mage。Hooded Rogue 的兜帽、脸部、靴子与披风轮廓更适合当前游戏，故继续改编它。原始两个 GLB 和候选预览仍保留。当前 `.blend` 是从免费 GLB 导入并修改的可编辑工程，不是作者的付费原始工程。
 
-## 交付文件
+## v3 比例与实现
+
+同构图、按站立总高度归一的前后对比：`assets-src/previews/proportions-v2-v3.png`。图中人物总高度相当；游戏里新版人物另由运行时缩小 10%，两件事分开处理。
+
+| 测量/参数 | v3 |
+| --- | ---: |
+| 站立模型高度 | 2.649742 |
+| 可见头部及兜帽高度 | 0.589034 |
+| 总高度 / 兜帽高度 | 4.498（约 4.5 头身） |
+| 头部与兜帽相对源模型缩放 | 0.56 |
+| 躯干宽度 | 源模型的约 0.76–0.80 |
+| 躯干长度 | 分段 1.20–1.23 |
+| 上、下腿骨长度 | 分段 3.0（源模型腿很短） |
+| 上、下臂长度 | 分段 1.5 |
+| 手部 / 脚部尺寸 | 0.68 / 0.78 |
+| 腹部局部额外收窄 | 8% |
+
+不是把整个模型纵向拉长：不同部位分别塑形，缩小头、手、脚，收窄躯干，延长四肢；脚踝改成与裤腿连续的靛蓝色。按原始骨骼权重将比例改动烘焙到静止网格与骨架，再重定向姿势。动画中不留下非均匀关节缩放，避免 glTF 无法表达的继承剪切。
+
+直接延长腿会把原 Q 版步幅和抬膝放大。v3 使用双骨 IK 重新匹配脚部目标，保留源动作的左右脚顺序、脚部朝向与膝盖朝向，降低抬脚高度，重新调整骨盆起伏；上臂摆幅缩小到源动作相对待机偏移的 58%，待机肩臂自然下垂约 0.13 rad。躯干表演与动作节奏仍来自现有片段。
+
+披风原来是挂在胸骨上的刚性对象；v3 已转换成真正的蒙皮网格，由 `chest` 与 `cape.tip` 加权控制。坐下时向后收折，起身时恢复。缩头后露出的领口穿插来自上臂袖子；将领巾上缘前移，形成连续覆盖，已用实际步行姿态和射线命中检查。
+
+## 文件与接口
 
 | 文件 | 内容 |
 | --- | --- |
-| `public/assets/actor.glb` | 运行时角色，589,500 字节，完全自包含，无外部贴图 |
-| `public/assets/actor-manifest.json` | 模型尺寸、材料、骨架、动作与测量值 |
-| `assets-src/noon-actor.blend` | 从免费 GLB 导入后改编的可编辑源文件，约 1.6 MB，压缩保存 |
-| `scripts/build_character.py` | 使用 Blender 4.5 重新生成角色、片段与预览 |
-| `assets-src/validate_actor.py` | 导出数据、片段与循环接缝验证器 |
-| `assets-src/actor-validation.json` | 对当前 GLB 的验证结果 |
-| `assets-src/archive/build_character_v1.py` | 先前自制角色生成器归档；当前运行时不使用 |
+| `public/assets/actor.glb` | 当前运行时角色，588,820 字节，完全自包含 |
+| `public/assets/actor-manifest.json` | 尺寸、比例参数、材料、骨架、片段与测量值 |
+| `assets-src/noon-actor.blend` | 可编辑压缩工程，约 1.7 MB |
+| `scripts/build_character.py` | 导入、配色、片段制作、导出与预览 |
+| `assets-src/retarget_proportions.py` | 比例烘焙、IK、足底支撑与手臂动作重定向 |
+| `assets-src/validate_actor.py` | GLB 数值、动作、循环与坐起衔接验证 |
+| `assets-src/validate_contact.py` | Blender 全片段逐帧接地审计 |
+| `assets-src/actor-validation.json` | 当前 GLB 验证结果 |
+| `assets-src/actor-contact-validation.json` | 逐帧脚底、身体与披风高度范围 |
+| `assets-src/archive/build_character_v2.py` | 旧比例的可复现生成器；旧预览也在 archive 内 |
 
-模型在待机首帧可见高度为 **2.238505** 模型单位；最低点为 **-0.000864**。导出采用 glTF 标准 **Y-up、+Z 朝前**，根节点无水平位移。源几何包含 3,252 顶点、4,005 三角面；按六种材料拆成 16 个 glTF primitives。包含 42 个骨骼节点：原始 41 个节点加一个 `cape.tip` 披风变形骨骼。原始控制节点保留以维持源动画结构。`root/hips/spine/chest/head`、左右 `upperleg/lowerleg/foot/toes`、`upperarm/lowerarm/wrist/hand` 等节点名称沿用源文件。
+模型包含 3,252 顶点、4,005 三角面、42 个骨骼节点（原始 41 个加 `cape.tip`），导出为 16 个材质 primitives。`root/hips/spine/chest/head`、左右 `upperleg/lowerleg/foot/toes` 与 `upperarm/lowerarm/wrist/hand` 等名称保持不变。
 
-原始 atlas 被转换为纯色材料；Three.js 替换 `MeshToonMaterial` 时保留 `material.color` 即可。主角为真正的立体蒙皮网格，影子可以克隆同一骨架并投影变形后的顶点。
+采用 **Y-up、+Z 朝前**，根节点无水平位移。站立脚底基准为 0。六种纯色材料已经替代原 atlas，Three.js 替换 `MeshToonMaterial` 时保留 `material.color` 即可。没有外部纹理依赖。影子可以克隆相同骨架，投影变形后的立体网格。
 
-## 片段与播放语义
+## 片段
 
-| 名称 | 秒 | 循环 | 来源/行为 |
+| 名称 | 秒 | 播放 | 行为 |
 | --- | ---: | --- | --- |
-| `idle` | 3.2 | 是 | 源 Idle 放慢，呼吸与重心起伏 |
-| `walk` | 1.066667 | 是 | 源 Walking_A；专业抬膝、脚跟/脚掌动作、对侧手臂摆动 |
-| `chase` | 0.8 | 是 | 源 Running_B 重定时；更明显的跑步重心变化 |
-| `look` | 2.4 | 否 | 在源站姿上制作，头与胸部左右回看后归位 |
-| `shrug` | 2.2 | 否 | 在源站姿上制作，双臂抬起与偏头后归位 |
-| `sit` | 2.2 | 否，末帧保持 | 源 Sit_Floor_Down；1.4 秒坐下，后 0.8 秒保持坐地 |
-| `rise` | 1.4 | 否 | 源 Sit_Floor_StandUp；由坐地恢复站立 |
-| `bow` | 2.4 | 否 | 站立→胸、腰、头共同鞠躬→站立 |
-| `turn` | 1.8 | 否 | 上身与头部转向再归位；不替代游戏世界中的人物朝向 |
-| `struggle` | 2.4 | 是 | 脚和骨盆保持，胸肩、手臂、头部持续准备/抵抗 |
+| `idle` | 3.2 | 循环 | 源 Idle 的呼吸与重心变化，适配新比例 |
+| `walk` | 1.066667 | 循环 | 源 Walking_A 经步幅/IK/摆臂重定向 |
+| `chase` | 0.8 | 循环 | 源 Running_B 经重定时与重定向 |
+| `look` | 2.4 | 单次 | 头与胸部左右回看后归位 |
+| `shrug` | 2.2 | 单次 | 双臂抬起与偏头后归位 |
+| `sit` | 2.2 | 单次，末帧保持 | 1.4 秒坐下，后 0.8 秒坐地保持 |
+| `rise` | 1.4 | 单次 | 由坐地恢复站立 |
+| `bow` | 2.4 | 单次 | 站立→胸腰与头部鞠躬→站立 |
+| `turn` | 1.8 | 单次 | 上身与头转向再归位 |
+| `struggle` | 2.4 | 循环 | 双脚保持，胸肩、手臂、头部准备/抵抗 |
 
-坐姿是**坐在地面**，双脚向前伸，不是椅子坐姿。坐下、起身时应保持角色世界根节点位置。`sit` 末帧与 `rise` 首帧所有导出变换完全一致；`rise` 末帧与 `idle` 首帧主体变换差小于 1.4e-6，只有披风的待机循环相位存在微小差异，可通过正常混合连接。`bow` 首尾站姿完全一致，不应以循环方式反复播放。
+坐姿是坐在地面，双脚向前伸。坐下和起身期间保持角色世界根节点位置。`sit` 末帧与 `rise` 首帧所有导出变换完全一致；`rise` 末帧与 `idle` 首帧主体变换差小于 5.4e-7，仅披风待机循环相位有约 0.00449 的四元数分量差，可正常混合。`bow` 首尾站姿一致。
 
-## 位移驱动步态
+## 位移驱动与新步幅
 
-- `walk.strideLength = 1.00`：一个完整左右双步周期的模型空间距离。
-- `chase.strideLength = 2.48`：一个完整跑步双步周期的模型空间距离。
-- `chase.phaseOffset = 0.0625`：跑步左脚首次落地比步行周期起点稍晚；采样 chase 时使用 `(sharedPhase + 0.0625) % 1`。
-- 角色缩放后，世界步幅也应乘同一缩放系数。相位按实际移动距离推进，不按按键持续时间推进。
-- 同一混合阶段使用共同相位与连续动作权重，不要在每次输入变化时重新从 0 播放。
+- `walk.strideLength = 1.637`：一个完整左右双步周期的模型空间距离。
+- `chase.strideLength = 3.634`：一个跑步双步周期的模型空间距离。
+- `chase.phaseOffset = 0.0625`：采样时使用 `(sharedPhase + 0.0625) % 1`，左右脚次序一致。
+- 归一高度为 2.07 时，世界步幅约为 **1.279 / 2.839**。不要沿用 v2 的 1.00 / 2.48 模型空间步幅。
+- 相位按实际移动距离推进；缩放人物时同时缩放步幅。动作切换保留连续相位和权重。
 
-步幅依据源动作左脚支撑段的水平位移做最小二乘拟合：walk 周期距离 0.998257、chase 2.481813 模型单位。拟合残差范围分别为 0.054520、0.039886；源动作是手工动画，**不是严格零滑动的运动学约束解**。这些数值是支撑段近似匹配，不能宣称全程脚底完全锁定。源动作局部鞋底也有轻微穿地；接触投影/阴影与混合应在实际场景中观察。
+步幅来自最终骨架左脚支撑段的水平位移拟合：walk 1.637056、chase 3.633741 模型单位/周期，残差范围分别为 0.109645、0.089225。这是动作与位移的近似匹配，不代表脚在整个支撑段完全没有水平滑动。IK 保证的是合适的腿部姿势与垂直接地；它不是全程水平脚锁定。
 
-最终 hips 上下范围：walk **0.054495**、chase **0.079238** 模型单位；旧自制步态约 0.003。`struggle` 中两只脚的世界空间移动范围测得 **0**，身体动作集中在脚以上。
+最终骨盆上下范围：walk **0.039685**、chase **0.087206** 模型单位。长腿初版被放大的高抬腿与大跨步已收敛。`struggle` 双脚位移范围为 0。
 
-## 视觉与数值检查
+## 检查证据
 
-实际在 Blender 中渲染并检查了正面、侧面、背面、四分之三视图，以及 walk 的接触/经过/抬脚、chase、sit、rise、bow、shrug、struggle 姿态。预览位于 `assets-src/previews/`。这组预览使用普通光照，最终游戏中的 Toon 材质与投影仍应在浏览器里检查。
+已实际渲染并查看正面、侧面、背面、四分之三，以及 walk 接触/经过/抬脚、chase、sit、rise、bow、shrug、struggle；规范预览在 `assets-src/previews/`。中间比例探针供过程讨论使用，最终判断以当前 GLB 和规范预览为准。
 
-对 `idle/walk/chase/struggle` 的循环首尾做了对称切线处理；最终 GLB 所有循环通道首尾误差为 0，最大接缝角速度差为 2.43e-5 rad/s，最大平移/缩放速度差低于 4.5e-6。验证器对四元数计算角速度，而不是把四元数分量差当作旋转速度。所有数值有限，GLB 仅保留上述 10 个动作，皮肤关节数为 42，无外部资源引用。
+对最终全部动作逐帧检查：
+
+- walk 最低脚底高度范围 **[-0.00017412, 0.00024036]** 模型单位（循环接缝烘焙造成的极小误差）。
+- idle、sit、rise、bow、look、shrug、turn、struggle 的脚底基准误差接近浮点 0。
+- chase 双脚腾空最高 **0.05910665** 模型单位，保留跑步腾空。
+- sit 最后身体最低点 **0.00133967**；整个坐下片段披风最低点 **0.04984343**，不穿地。
+- 四个循环片段首尾变换误差为 0，最大接缝角速度差 < **2.6e-5 rad/s**，最大平移/缩放速度差 < **1.9e-5**。
+- 所有数值有限，保留 10 个动作、42 个关节，无外部资源引用。
+
+这些是几何、动作与接地检查；最终 Toon 材质、动画混合和影子仍需在浏览器中检视。
 
 ```sh
 blender --background --python scripts/build_character.py
 python3 assets-src/validate_actor.py
+blender --background --python assets-src/validate_contact.py
 ```
 
-设置 `NOON_SKIP_PREVIEWS=1` 可仅重新构建 GLB 和可编辑源文件。Blender 来自官方 macOS arm64 4.5.15 LTS 镜像，使用临时挂载目录内的二进制；没有覆盖系统安装的软件。当前 `.blend` 是改编后的可编辑工程，不是作者的付费原始 `.blend` 工程。
+设置 `NOON_SKIP_PREVIEWS=1` 可只重建 GLB 和源工程。对比排版脚本 `assets-src/make_proportion_comparison.py` 需要 Pillow。Blender 使用官方 macOS arm64 4.5.15 LTS 临时镜像内的二进制，没有覆盖系统软件。

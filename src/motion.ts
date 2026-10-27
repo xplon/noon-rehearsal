@@ -1,7 +1,7 @@
 /** Ground-plane motion: bounded acceleration/jerk, eased facing and soft arrival. */
 export type Point = {x:number;z:number};
 export type Motion = Point & {vx:number;vz:number;ax:number;az:number;yaw:number;yawVelocity:number};
-export const MOTION = {speed:2.65,acceleration:10,jerk:75,response:11,turnSpeed:4.8,turnAcceleration:16};
+export const MOTION = {speed:2.25,followSpeed:2.65,catchUpSpeed:2.7,attachSpeed:2.9,demoSpeed:1.83,reverseSpeed:1.9,acceleration:8.5,jerk:64,response:11,turnSpeed:4.8,turnAcceleration:16};
 export const length=(p:Point)=>Math.hypot(p.x,p.z);
 export const clamp=(x:number,a:number,b:number)=>Math.max(a,Math.min(b,x));
 export const smooth=(x:number)=>{x=clamp(x,0,1);return x*x*(3-2*x);};

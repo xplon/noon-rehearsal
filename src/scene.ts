@@ -192,8 +192,8 @@ export class StageScene {
   }
   ring(x:number,z:number,r:number,color:number){const m=new THREE.Mesh(new THREE.RingGeometry(r-.025,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.025,z);this.stage.add(m);return m;}
   async load(){
-    const [gltf,manifest]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb?v=2`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json?v=2`).then(r=>r.json())]);this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
-    const bounds=new THREE.Box3().setFromObject(gltf.scene);this.actorScale=2.3/(bounds.max.y-bounds.min.y);
+    const [gltf,manifest]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb?v=3`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json?v=3`).then(r=>r.json())]);this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
+    const bounds=new THREE.Box3().setFromObject(gltf.scene);this.actorScale=2.07/(bounds.max.y-bounds.min.y);
     this.stride=(manifest.clips.walk.strideLength||1)*this.actorScale;this.runStride=(manifest.clips.chase.strideLength||2.48)*this.actorScale;
     this.body=this.createRig(gltf.scene,false);this.shadow=this.createRig(gltf.scene,true);this.ready=true;
   }
