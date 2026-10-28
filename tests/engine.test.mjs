@@ -79,3 +79,40 @@ test('interrupted animation transitions retain all previous pose weights',()=>{
   for(const name of Object.keys(before))assert(Math.abs(g.body.weights[name]-before[name])<.13);
  }
 });
+
+
+test('return keeps the final heading and echo turns through the nearest side without a snap',()=>{
+ const g=new Game();g.distance=3;g.body.yaw=Math.PI-.06;g.shadow.yaw=g.body.yaw;g.transition('return');
+ const heading=g.body.yaw;until(g,'echo',2);assert(Math.abs(g.body.yaw-heading)<1e-10);
+ // The recorded route now crosses the -pi/pi boundary; its root position is still read at original times.
+ g.route=[g.routePoint({...g.body,yaw:-Math.PI+.12,vx:-.08,vz:-.8},0),g.routePoint({...g.body,x:HOME.x-.08,z:HOME.z-.8,yaw:-Math.PI+.12,vx:-.08,vz:-.8},1)];g.echoWindow=1;
+ let prev=g.body.yaw;
+ for(let i=0;i<20;i++){g.step();assert(Math.abs(g.body.yaw-prev)<=MOTION.turnSpeed/60+.0001);prev=g.body.yaw;}
+ assert(g.body.yaw>heading);assert(g.body.yaw-heading<.25);
+});
+test('independent shadow notices, takes a bounded tentative step, then stops; input interrupts it',()=>{
+ const g=new Game();g.body.x=1;g.body.vx=1;g.shadowNoticeAt=-100;
+ const start={...g.shadow};g.reactShadow(1/60,false);assert.equal(g.shadowActing,'surprise');assert(g.events.some(e=>e.actor==='shadow'&&e.type==='reaction'));
+ for(let i=0;i<180;i++){g.time+=1/60;g.shadowActing=null;g.reactShadow(1/60,false);g.animate(g.shadow,g.shadowActing??'walk',1/60);}
+ assert(g.events.some(e=>e.type==='shadow-attempt'));assert(dist(start,g.shadow)>.1);assert(dist(start,g.shadow)<.55);assert(Math.hypot(g.shadow.vx,g.shadow.vz)<.02);
+ g.shadowNoticeAt=g.time;g.setInput(-1,0);g.reactShadow(1/60,true);assert.equal(g.shadowSource,'input');
+});
+test('follower looks first, waits, then accelerates; a sharp leader turn causes another glance',()=>{
+ const g=new Game();g.transition('follow');g.shadow.x=g.body.x+1;g.shadow.vx=1;
+ let maxEarlySpeed=0;
+ for(let i=0;i<36;i++){g.time+=1/60;g.followWithReaction(1/60);g.lookAt(g.body,g.bodyLook,1/60);maxEarlySpeed=Math.max(maxEarlySpeed,Math.hypot(g.body.vx,g.body.vz));}
+ assert(maxEarlySpeed<.001);assert(g.body.lookWeight>.9);assert(g.body.lookYaw>.2);
+ for(let i=0;i<60;i++){g.time+=1/60;g.followWithReaction(1/60);}
+ assert(g.body.x>HOME.x+.1);assert(g.events.some(e=>e.reason==='first-departure'));
+ g.time+=3;g.shadow.x=g.body.x+1;g.shadow.z=g.body.z+1;g.shadow.vx=-1;g.shadow.vz=0;g.followWithReaction(1/60);
+ assert(g.events.some(e=>e.reason==='direction-change'));
+});
+test('teacher reaches the requested stage mark before bowing, then still completes',()=>{
+ const g=new Game('teacher');g.transition('follow');g.elapsed=23;g.shadow.x=1.8;g.shadow.z=-.3;g.setInput(0,0);
+ for(let i=0;i<1500&&!g.events.some(e=>e.type==='bow');i++)g.step();
+ assert(g.events.some(e=>e.type==='bow'));assert(dist(g.body,{x:1.8,z:-.3})<.04);assert(Math.hypot(g.body.vx,g.body.vz)<.07);
+ until(g,'ended',150);assert.deepEqual(g.body,g.shadow);
+});
+test('both full versions finish under sustained contrary input with every pose weight finite',()=>{
+ for(const mode of ['student','teacher']){const g=new Game(mode);until(g,'ended',220,(g,i)=>({x:Math.sin(i/80),z:Math.cos(i/90)}));assert(g.frames.every(f=>[f.body,f.shadow].every(a=>Number.isFinite(a.lookYaw)&&Math.abs(Object.values(a.weights).reduce((s,v)=>s+v,0)-1)<1e-7)));assert.deepEqual(g.body,g.shadow);}
+});

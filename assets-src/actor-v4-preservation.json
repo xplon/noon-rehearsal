@@ -1,0 +1,54 @@
+{
+  "baseline": "/tmp/noon-rehearsal-tools/actor-v3.glb",
+  "baselineSha256": "1943f2e5f1998d2e2eba2c8352476fdbe6eabbe7cc170109e2031b9e61ee2903",
+  "currentSha256": "d16859fa61f8d3277a74ba43db14900209493ccabbdf5bedb3cf0745677a4676",
+  "meshMaxDifference": 0,
+  "skinMaxDifference": 0,
+  "oldClips": {
+    "bow": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "chase": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "idle": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "look": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "rise": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "shrug": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "sit": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "struggle": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "turn": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "walk": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    }
+  },
+  "addedClips": [
+    "reach",
+    "surprise"
+  ],
+  "preservedExactly": true
+}

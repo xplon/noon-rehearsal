@@ -1,5 +1,5 @@
 {
-  "bytes": 588820,
+  "bytes": 629868,
   "skins": 1,
   "joints": 42,
   "embeddedOnly": true,
@@ -32,6 +32,13 @@
       "linearVelocitySeam": 0,
       "loop": false
     },
+    "reach": {
+      "duration": 1.5,
+      "endpointComponentGap": 0.0,
+      "angularVelocitySeamRadPerSec": 0.41976439468313737,
+      "linearVelocitySeam": 0,
+      "loop": false
+    },
     "rise": {
       "duration": 1.4,
       "endpointComponentGap": 1.8407095670700073,
@@ -60,6 +67,13 @@
       "linearVelocitySeam": 0,
       "loop": true
     },
+    "surprise": {
+      "duration": 1.2,
+      "endpointComponentGap": 0.0,
+      "angularVelocitySeamRadPerSec": 0.5227209556837434,
+      "linearVelocitySeam": 0.03630190011305541,
+      "loop": false
+    },
     "turn": {
       "duration": 1.8,
       "endpointComponentGap": 0.0,
@@ -86,6 +100,22 @@
     },
     "idle->sit": {
       "maxComponentGap": 0.00448482483625412,
+      "maxBodyGap": 0.0
+    },
+    "idle->surprise": {
+      "maxComponentGap": 5.551115123125783e-17,
+      "maxBodyGap": 5.551115123125783e-17
+    },
+    "surprise->idle": {
+      "maxComponentGap": 5.551115123125783e-17,
+      "maxBodyGap": 5.551115123125783e-17
+    },
+    "idle->reach": {
+      "maxComponentGap": 0.0,
+      "maxBodyGap": 0.0
+    },
+    "reach->idle": {
+      "maxComponentGap": 0.0,
       "maxBodyGap": 0.0
     }
   }

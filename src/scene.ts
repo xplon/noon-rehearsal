@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import {buildCourtyardDetails} from './courtyard-detail';
+import {createInkPipeline} from './ink-outline';
+import {courtyardMotion} from './environment-motion';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { ANIMATIONS, BOW, HOME, EXIT, PLANT, type Actor, type Frame, type Visual, type Vec } from './engine';
@@ -7,6 +10,8 @@ const C={cream:0xfff0c9,paper:0xf5e8c9,sand:0xedbc4a,tile:0xf6cf65,coral:0xd9654
 type Rig={root:THREE.Group,mixer:THREE.AnimationMixer,actions:Map<string,THREE.AnimationAction>,nodes:THREE.Object3D[]};
 export class StageScene {
   renderer:THREE.WebGLRenderer; scene=new THREE.Scene(); camera:THREE.OrthographicCamera;
+  ink:ReturnType<typeof createInkPipeline>;outlineExclusions:THREE.Object3D[]=[];
+  foliage:{node:THREE.Group;phase:number}[]=[];leaves:{node:THREE.Mesh;base:THREE.Euler;phase:number}[]=[];doorHinge=new THREE.Group();lastShadowUpdate=-1;
   stage=new THREE.Group(); actors=new THREE.Group(); body:Rig|null=null; shadow:Rig|null=null;
   clips:THREE.AnimationClip[]=[]; materialCache=new Map<number,THREE.MeshToonMaterial>();
   gradient:THREE.DataTexture; homeRing:THREE.Mesh; exitRing:THREE.Mesh; bowRing:THREE.Mesh;
@@ -18,7 +23,7 @@ export class StageScene {
   constructor(public host:HTMLElement){
     this.renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,this.pixelRatio));
-    this.renderer.setClearColor(C.paper);this.renderer.outputColorSpace=THREE.SRGBColorSpace;
+    this.renderer.setClearColor(C.paper);this.scene.background=new THREE.Color(C.paper);this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate=false;this.renderer.shadowMap.needsUpdate=true;
     this.renderer.domElement.setAttribute('aria-label','正午庭院，固定镜头的三维互动舞台');this.host.append(this.renderer.domElement);
@@ -30,10 +35,10 @@ export class StageScene {
     this.scene.add(sun);this.scene.add(this.stage,this.actors,this.overlay,this.trace);
     this.floor=this.box(0,-.3,0,22,.6,15,C.sand,true);this.floor.receiveShadow=true;
     this.box(0,-.66,.1,22.4,.16,15.4,C.darkCoral,true);
-    this.buildArchitecture();this.buildFloor();this.buildPlanter(PLANT.x,PLANT.z,1);this.buildPlanter(6.9,-4.8,.65);
+    this.buildArchitecture();buildCourtyardDetails(this,C);this.buildFloor();this.buildPlanter(PLANT.x,PLANT.z,1);this.buildPlanter(6.9,-4.8,.65);
     this.buildBench(-6.6,-3.5);this.buildProps();
     this.homeRing=this.ring(HOME.x,HOME.z,.47,C.cream);this.exitRing=this.ring(EXIT.x,EXIT.z,.63,C.mint);this.bowRing=this.ring(BOW.x,BOW.z,.6,C.mint);this.bowRing.visible=false;
-    this.door=this.buildDoor();
+    this.door=this.buildDoor();this.outlineExclusions.push(this.overlay,this.trace);this.ink=createInkPipeline(this.renderer,this.scene,this.camera,this.outlineExclusions,C.ink);
     // Fit the whole architecture in camera space, including the tower roofs and platform.
     this.stage.updateMatrixWorld(true);
     this.stage.traverse(node=>{if(!(node instanceof THREE.Mesh))return;
@@ -55,10 +60,10 @@ export class StageScene {
         shader.uniforms.noonShade={value:shade};
         shader.fragmentShader='uniform vec3 noonShade;\n'+shader.fragmentShader;
         shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`float illumination = dot(outgoingLight, vec3(0.2126,0.7152,0.0722)) / max(dot(diffuseColor.rgb,vec3(0.2126,0.7152,0.0722)),0.001);
-          outgoingLight = mix(noonShade, diffuseColor.rgb, smoothstep(0.65,0.72,illumination));
+          outgoingLight = mix(noonShade, diffuseColor.rgb, smoothstep(0.685-max(fwidth(illumination),.025),0.685+max(fwidth(illumination),.025),illumination));
           #include <opaque_fragment>`);
       };
-      material.customProgramCacheKey=()=>`noon-palette-${color}`;this.materialCache.set(color,material);
+      material.customProgramCacheKey=()=>`noon-palette-aa-${color}`;this.materialCache.set(color,material);
     }
     return this.materialCache.get(color)!;
   }
@@ -98,12 +103,7 @@ export class StageScene {
     // Asymmetric tower and rooftop stair silhouette.
     this.box(-6.8,6.5,-7.8,4.2,3.8,3.1,C.coral);
     this.box(-6.8,8.45,-7.8,4.45,.2,3.3,C.lightCoral);
-    this.box(-6.8,8.75,-7.8,4.1,.45,2.9,C.coral);
-    for(let i=0;i<8;i++)this.box(3.5+i*.56,5.15+i*.3,-7.2,.58,.32,2.4,C.coral,true);
     this.box(8,7.3,-7.6,2.8,4.5,3,C.lightCoral);
-    this.box(8,9.65,-7.6,3.15,.22,3.3,C.coral);
-    this.arch(-6.8,-6.21,.9,1.5,.1,C.darkCoral,5.7);
-    this.box(-6.8,6.1,-6.3,.7,.8,.12,C.ink,false);
     // Left terrace, low enough to keep the playable ground visible.
     this.box(-9.5,1.05,.3,2.0,2.1,11.3,C.coral);
     this.box(-9.5,2.18,.3,2.3,.2,11.5,C.lightCoral);
@@ -150,9 +150,11 @@ export class StageScene {
     const g=new THREE.Group();g.position.set(EXIT.x,0,-5.22);this.stage.add(g);
     this.arch(0,0,1.8,3.0,.23,C.cream,0,g);
     const shape=new THREE.Shape();shape.moveTo(-.85,0);shape.lineTo(.85,0);shape.lineTo(.85,1.9);shape.absarc(0,1.9,.85,0,Math.PI,false);shape.closePath();
-    const leaf=this.mesh(new THREE.ShapeGeometry(shape),C.green,false,g);leaf.position.z=.03;
-    for(let x=-.6;x<=.7;x+=.3)this.line([[x,.1,.05],[x,2.3,.05]],C.ink,.5,g);
-    this.box(0,1,.09,.05,2,.07,C.ink,false,g);this.cylinder(.2,1.2,.15,.065,.065,.09,C.cream,12,g).rotation.x=Math.PI/2;
+    this.doorHinge.position.set(-.85,0,.03);g.add(this.doorHinge);
+    const panel=new THREE.Group();panel.position.x=.85;this.doorHinge.add(panel);
+    const leaf=this.mesh(new THREE.ExtrudeGeometry(shape,{depth:.06,bevelEnabled:false,curveSegments:20}),C.green,false,panel);leaf.position.z=-.03;
+    for(let x=-.6;x<=.7;x+=.3)this.line([[x,.1,.045],[x,2.3,.045]],C.ink,.4,panel);
+    this.box(0,1,.08,.05,2,.07,C.ink,false,panel);this.cylinder(.2,1.2,.15,.065,.065,.09,C.cream,12,panel).rotation.x=Math.PI/2;
     this.box(0,.04,.6,2.3,.08,1,C.lightCoral,true,g);
     // A hand-built sign: simple arrow, no font in the 3D world.
     this.box(1.75,2.5,.1,.85,.65,.12,C.cream,true,g);
@@ -165,12 +167,13 @@ export class StageScene {
     const profile=[new THREE.Vector2(.48,0),new THREE.Vector2(.6,.1),new THREE.Vector2(.67,.55),new THREE.Vector2(.82,.8),new THREE.Vector2(.84,.92),new THREE.Vector2(.76,.96),new THREE.Vector2(.72,.84)];
     this.mesh(new THREE.LatheGeometry(profile,20),C.coral,false,g);
     this.cylinder(0,.85,0,.72,.72,.05,C.darkCoral,20,g);
+    const foliage=new THREE.Group();foliage.position.y=.87;g.add(foliage);this.foliage.push({node:foliage,phase:x*.7+z});
     for(let i=0;i<11;i++){
       const a=i*2.399,r=.25+(i%3)*.12,h=1.1+(i%4)*.3;
       const pts=[new THREE.Vector3(0,.87,0),new THREE.Vector3(Math.sin(a)*r,1.3,Math.cos(a)*r),new THREE.Vector3(Math.sin(a)*r*1.6,h+.8,Math.cos(a)*r*1.6)];
-      const curve=new THREE.CatmullRomCurve3(pts);this.mesh(new THREE.TubeGeometry(curve,8,.025,5,false),C.green,false,g);
+      pts.forEach(p=>p.y-=.87);const curve=new THREE.CatmullRomCurve3(pts);this.mesh(new THREE.TubeGeometry(curve,8,.025,5,false),C.green,false,foliage);
       const shape=new THREE.Shape();shape.moveTo(0,0);shape.quadraticCurveTo(.4,.35,0,.9);shape.quadraticCurveTo(-.25,.35,0,0);
-      const leaf=this.mesh(new THREE.ShapeGeometry(shape),i%2?C.green:C.leaf,false,g);leaf.position.copy(pts[1]);leaf.rotation.set(-.25,a,-.5);(leaf.material as THREE.Material).side=THREE.DoubleSide;
+      const leaf=this.mesh(new THREE.ShapeGeometry(shape),i%2?C.green:C.leaf,false,foliage);leaf.position.copy(pts[1]);leaf.rotation.set(-.25,a,-.5);(leaf.material as THREE.Material).side=THREE.DoubleSide;this.leaves.push({node:leaf,base:leaf.rotation.clone(),phase:a+x});
     }
   }
   buildBench(x:number,z:number){
@@ -192,10 +195,10 @@ export class StageScene {
   }
   ring(x:number,z:number,r:number,color:number){const m=new THREE.Mesh(new THREE.RingGeometry(r-.025,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.025,z);this.stage.add(m);return m;}
   async load(){
-    const [gltf,manifest]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb?v=3`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json?v=3`).then(r=>r.json())]);this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
+    const [gltf,manifest]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb?v=4`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json?v=4`).then(r=>r.json())]);this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
     const bounds=new THREE.Box3().setFromObject(gltf.scene);this.actorScale=2.07/(bounds.max.y-bounds.min.y);
     this.stride=(manifest.clips.walk.strideLength||1)*this.actorScale;this.runStride=(manifest.clips.chase.strideLength||2.48)*this.actorScale;
-    this.body=this.createRig(gltf.scene,false);this.shadow=this.createRig(gltf.scene,true);this.ready=true;
+    this.body=this.createRig(gltf.scene,false);this.shadow=this.createRig(gltf.scene,true);this.outlineExclusions.push(this.shadow.root);this.ink.outline.selectedObjects=[this.body.root];this.ready=true;
   }
   createRig(source:THREE.Group,shadow:boolean):Rig{
     const root=cloneSkeleton(source) as THREE.Group;root.name=shadow?'Shadow actor':'Body actor';root.scale.setScalar(this.actorScale);
@@ -221,11 +224,6 @@ export class StageScene {
         node.castShadow=false;node.receiveShadow=!shadow;node.frustumCulled=false;
         node.material=Array.isArray(node.material)?node.material.map(materialFor):materialFor(node.material);
         if(shadow)node.renderOrder=2;
-        else if(node instanceof THREE.SkinnedMesh){
-          const outlineMaterial=new THREE.MeshBasicMaterial({color:C.ink,side:THREE.BackSide});
-          outlineMaterial.onBeforeCompile=shader=>{shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed += objectNormal * 0.013;');};
-          const shell=new THREE.SkinnedMesh(node.geometry,outlineMaterial);shell.bind(node.skeleton,node.bindMatrix);shell.bindMode=node.bindMode;shell.frustumCulled=false;shell.name='ink-outline';node.add(shell);
-        }
       }
     });
     this.actors.add(root);const mixer=new THREE.AnimationMixer(root);const actions=new Map<string,THREE.AnimationAction>();
@@ -246,9 +244,24 @@ export class StageScene {
         const duration=action.getClip().duration;
         const time=name==='walk'||name==='chase'?(a.gaitPhase+(this.phaseOffsets[name]||0))*duration:a.clocks[name];
         action.enabled=true;action.weight+=a.weights[name];
-        action.time=['bow','shrug','turn','sit','rise','look'].includes(name)?Math.min(time,duration-1e-5):time%duration;
+        action.time=['bow','shrug','turn','sit','rise','look','surprise','reach'].includes(name)?Math.min(time,duration-1e-5):time%duration;
       }
       rig.mixer.update(0);
+      // Add the recorded gaze after clip mixing, using world-up in each bone's parent frame.
+      if(a.lookWeight>.001){
+        rig.root.updateMatrixWorld(true);
+        for(const [name,share] of [['chest',.28],['head',.72]] as const){
+          const bone=rig.nodes.find(n=>n.name===name);if(!bone?.parent)continue;
+          const inverse=bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+          const axis=new THREE.Vector3(0,1,0).applyQuaternion(inverse);
+          bone.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis,a.lookYaw*a.lookWeight*share));
+          if(name==='head'){
+            const right=new THREE.Vector3(Math.cos(a.yaw),0,-Math.sin(a.yaw)).applyQuaternion(inverse);
+            bone.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(right,a.lookPitch*a.lookWeight));
+          }
+          bone.updateMatrixWorld(true);
+        }
+      }
     }
     rig.root.updateMatrixWorld(true);
   }
@@ -272,7 +285,12 @@ export class StageScene {
     this.homeRing.visible=frame.stage==='arrival'||frame.stage==='return';
     this.homeRing.material=(this.homeRing.material as THREE.MeshBasicMaterial);(this.homeRing.material as THREE.MeshBasicMaterial).opacity=frame.goal?1:.55;(this.homeRing.material as THREE.MeshBasicMaterial).transparent=true;
     this.exitRing.visible=frame.stage==='arrival'&&!frame.goal||frame.stage==='follow'||frame.stage==='rejoin';
-    this.bowRing.visible=frame.mode==='teacher'&&frame.stage==='follow'&&frame.elapsed>27;
+    this.bowRing.visible=frame.mode==='teacher'&&frame.stage==='follow'&&frame.elapsed>22;
+    const motion=courtyardMotion(frame.t);this.doorHinge.rotation.y=motion.doorAngle;
+    for(const {node,phase} of this.foliage){node.rotation.z=motion.wind+Math.sin(frame.t*.9+phase)*.014;node.rotation.x=Math.sin(frame.t*.65+phase)*.018;}
+    for(const {node,base,phase} of this.leaves){node.rotation.x=base.x+Math.sin(frame.t*1.5+phase)*.035;node.rotation.z=base.z+Math.sin(frame.t*1.1+phase)*.028;}
+    // Moving foliage and the hinged door keep their real cast shadows in step.
+    if(Math.abs(frame.t-this.lastShadowUpdate)>.08){this.renderer.shadowMap.needsUpdate=true;this.lastShadowUpdate=frame.t;}
     for(const flag of this.flags){const p=flag.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i);p.setZ(i,Math.sin(frame.t*1.4+x*3+p.getY(i))*.035*(x+.55));}p.needsUpdate=true;}
   }
   setEvidence(frame:Frame,frames:Frame[],show:boolean){
@@ -292,7 +310,7 @@ export class StageScene {
     const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0));
     return {x:right.x*x-forward.x*y,z:right.z*x-forward.z*y};
   }
-  resize(){const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);
+  resize(){const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.ink.composer.setPixelRatio(this.renderer.getPixelRatio());this.ink.composer.setSize(w,h);this.ink.outline.edgeThickness=.8*this.renderer.getPixelRatio();
     const aspect=w/h;this.camera.updateMatrixWorld(true);
     const points=this.framingPoints.map(p=>p.clone().applyMatrix4(this.camera.matrixWorldInverse));
     const xs=points.map(p=>p.x),ys=points.map(p=>p.y);
@@ -301,5 +319,5 @@ export class StageScene {
     this.camera.left=cx-height*aspect/2;this.camera.right=cx+height*aspect/2;this.camera.top=cy+height/2;this.camera.bottom=cy-height/2;
     this.camera.updateProjectionMatrix();this.render();}
   setQuality(low:boolean){this.renderer.setPixelRatio(low?1:Math.min(devicePixelRatio,1.5));this.resize();}
-  render(){this.renderer.render(this.scene,this.camera);}
+  render(){this.ink.composer.render();}
 }

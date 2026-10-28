@@ -21,7 +21,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
       <p class="invitation">门已经在那里。<br>接下来，请你走一小段路。</p>
       <fieldset class="mode-switch"><legend class="sr-only">选择演出版本</legend><label><input type="radio" name="mode" value="student" checked><span>个人体验 <small>约 2 分钟</small></span></label><label><input type="radio" name="mode" value="teacher"><span>剧场演出 <small>约 3 分钟</small></span></label></fieldset>
       <button id="start-button" class="primary" disabled><span>正在布置舞台</span><span aria-hidden="true">→</span></button>
-      <p class="small-note">方向键 / WASD 移动 · 手机使用方向盘<br>静音也能完整体验 · 动作仅在本页记录，供结束后回看</p>
+      <p class="small-note">方向键 / WASD 移动 · 手机使用方向盘<br>静音也能完整体验 · 剧场版结束后可回看</p>
     </section>
     <div class="scene-caption" id="scene-caption"><span class="caption-line"></span><span>正午 · 无需准时</span><span class="sun-mark">☼</span></div>
     <div id="loading" class="loading"><span class="loader-arch"></span><span>演员正在候场</span></div>
@@ -32,20 +32,21 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
       <div id="host-controls" class="host-controls" hidden><span>这些操作会写入本局记录</span><button id="skip-button">跳过这一段</button><button id="end-button">提前落幕</button></div>
     </section>
     <div id="joystick" class="joystick" aria-label="拖动方向盘移动" role="application" hidden><div class="joystick-cross"></div><div class="joystick-knob"></div></div>
-    <section id="ending" class="ending" hidden><p class="eyebrow">这一场，演完了。</p><h1 data-title="我的影子迟到了">我的影子<span>迟到了</span></h1><p id="ending-line"></p><button class="primary" id="review-button"><span>回看刚才</span><span>↗</span></button><button class="text-button" id="again-button">再走一遍</button></section>
+    <section id="ending" class="ending" hidden><p class="eyebrow">这一场，演完了。</p><h1 aria-label="我的影子迟到了"><span aria-hidden="true" class="title-first">我的影子</span><span aria-hidden="true" class="title-second"><span class="late-word">迟到</span><span class="title-last">了</span></span></h1><p id="ending-line"></p><div class="ending-actions"><button class="primary" id="review-button"><span>回看刚才</span><span>↗</span></button><button class="text-button" id="again-button">再走一遍</button></div></section>
     <section id="review" class="review" hidden>
       <div class="review-heading"><p class="eyebrow">本场演出记录 / RECORDED HERE</p><h2>刚才，是谁在走？</h2><p>先看一次，再打开幕后的线索。</p></div>
       <div class="clip-tabs" id="clip-tabs" role="tablist" aria-label="回看片段"></div>
       <div id="replay-subtitle" class="replay-subtitle"></div>
       <div class="review-bottom"><div class="transport"><button id="replay-play" aria-label="播放片段">▷</button><span id="replay-time">00:00</span><input id="timeline" type="range" min="0" max="1" value="0" step="0.033" aria-label="回看时间"><span id="replay-end">00:00</span><button id="evidence-button" aria-pressed="false">展开线索</button></div><div class="analysis-card"><div><span class="eyebrow" id="clip-concept"></span><h3 id="clip-question"></h3><p id="clip-fact"></p></div><div class="evidence-values" id="evidence-values" hidden></div></div><div id="correction" class="correction" hidden></div><div class="review-actions"><button id="correct-button">旁白，改口。</button><button id="export-button">保存本局记录 ↓</button><button id="new-button">重新入场 ↗</button></div></div>
     </section>
-    <section id="pause-panel" class="pause-panel" hidden><p class="eyebrow">幕间 / INTERMISSION</p><h2>庭院会等你。</h2><p>演出时间已暂停。</p><button id="resume-button" class="primary"><span>继续这一场</span><span>→</span></button><button id="leave-button" class="text-button">结束并回看</button></section>
+    <section id="pause-panel" class="pause-panel" hidden><p class="eyebrow">幕间 / INTERMISSION</p><h2>庭院会等你。</h2><p>演出时间已暂停。</p><button id="resume-button" class="primary"><span>继续这一场</span><span>→</span></button><button id="leave-button" class="text-button">结束这一场</button></section>
   </main>
   <footer class="footer"><span>一个关于行动与观看的互动作品</span><span class="footer-center">EST. AT NOON <span>✳</span></span><button id="share-button" class="text-button">邀请另一个人入场 ↗</button></footer>
 </div>
-<dialog id="about-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">入场之前</p><h2>用一小段时间，<br>走进一处庭院。</h2><p>电脑使用方向键或 WASD；手机拖动固定方向盘。游戏不计分，也不需要每一步都照着提示走。</p><p>个人体验约两分钟；剧场演出稍长，适合投影和旁观。两种版本都会完整结束，之后可回看自己的动作。</p><div class="notice"><strong>关于本局记录</strong><p>角色轨迹与操作保存在当前页面，用于结束后的回看。不采集姓名、摄像头或麦克风，不上传游玩记录。分享或展示他人的体验前，请先征得同意。关闭或刷新页面会清除未导出的记录。</p></div><p class="asset-credit">角色改编自 <a href="https://kaylousberg.com/game-assets" target="_blank" rel="noopener">Kay Lousberg · KayKit</a>（CC0）。</p><button class="primary dialog-close-action"><span>知道了</span><span>→</span></button></dialog>
+<dialog id="about-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">入场之前</p><h2>用一小段时间，<br>走进一处庭院。</h2><p>电脑使用方向键或 WASD；手机横屏，拖动右侧方向盘。游戏不计分，也不需要每一步都照着提示走。</p><p>个人体验约两分钟；剧场演出稍长，适合投影和旁观。个人体验在片名出现时结束；剧场演出包含休息、谢幕和倒走，结束后可回看自己的动作。</p><div class="notice"><strong>关于本局记录</strong><p>角色轨迹与操作保存在当前页面，用于本场演出与剧场版回看。不采集姓名、摄像头或麦克风，不上传游玩记录。分享或展示他人的体验前，请先征得同意。关闭或刷新页面会清除未导出的记录。</p></div><p class="asset-credit">角色改编自 <a href="https://kaylousberg.com/game-assets" target="_blank" rel="noopener">Kay Lousberg · KayKit</a>（CC0）。</p><button class="primary dialog-close-action"><span>知道了</span><span>→</span></button></dialog>
 <dialog id="share-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">一人，一场。</p><h2>在你的庭院里见。</h2><canvas id="qr"></canvas><p>扫码进入个人体验</p><button id="copy-button" class="primary"><span>复制入场链接</span><span>↗</span></button></dialog>
-<div id="toast" role="status" aria-live="polite"></div>`;
+<div id="toast" role="status" aria-live="polite"></div>
+<section id="rotation-guide" class="rotation-guide" aria-label="手机横屏游玩" hidden><div class="rotate-device" aria-hidden="true"><span>↻</span></div><p class="eyebrow">把庭院展开</p><h2>横过来，再入场。</h2><p>请将手机转为横屏。<br>留出足够的空间，看清人物与庭院。</p><small>若已开始，演出会暂停等你。</small></section>`;
 
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const theatre=$('theatre'),sound=new Sound();let scene:StageScene;
@@ -63,16 +64,25 @@ function screen(next:typeof view){
 function start(){
   if(!ready)return;mode=document.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value as Mode;
   game=new Game(mode,scene.stride,scene.runStride);previousTick=null;corrections=[];keys.clear();stick={x:0,y:0};accumulator=0;replayPlaying=false;evidence=false;
-  $('mode-label').textContent=mode==='teacher'?'一场剧场演出':'一场个人试演';scene.setEvidence(game.snapshot(),[],false);screen('play');
+  $('mode-label').textContent=mode==='teacher'?'一场剧场演出':'一场个人试演';$('host-button').hidden=mode==='student';scene.setEvidence(game.snapshot(),[],false);screen('play');sound.resetAmbience();
   document.title='庭院试演 · 正午排练场';scene.apply(game.snapshot());game.frames[0].visual=scene.capture();sound.chime();
 }
 function pause(reason='manual'){
   if(view!=='play'||!game||game.stage==='ended')return;game.pause(reason);keys.clear();resetStick();$('pause-panel').hidden=false;
 }
 function resume(){if(!game)return;game.resume();last=performance.now();accumulator=0;$('pause-panel').hidden=true;}
-function endReveal(){screen('ending');document.title='我的影子迟到了 · 正午排练场';$('ending-line').textContent=game!.line;}
+const portraitPhone=matchMedia('(max-width:700px) and (orientation:portrait)');
+function syncOrientation(){
+  theatre.inert=portraitPhone.matches;$('rotation-guide').hidden=!portraitPhone.matches;
+  if(portraitPhone.matches&&view==='play')pause('portrait-orientation');
+}
+portraitPhone.addEventListener('change',syncOrientation);syncOrientation();
+function endReveal(){
+  $('review-button').hidden=mode==='student';$('again-button').className=mode==='student'?'primary':'text-button';
+  screen('ending');document.title='我的影子迟到了 · 正午排练场';$('ending-line').textContent=game!.line;
+}
 function review(){
-  if(!game?.frames.length)return;clips=makeClips(game.frames,game.events);screen('review');
+  if(!game?.frames.length||game.mode!=='teacher')return;clips=makeClips(game.frames,game.events);screen('review');
   $('clip-tabs').innerHTML=clips.map((c,i)=>`<button role="tab" id="clip-${i}" data-clip="${i}"><small>0${i+1}</small>${c.name}</button>`).join('');
   $('clip-tabs').querySelectorAll<HTMLButtonElement>('button').forEach(button=>button.onclick=()=>selectClip(Number(button.dataset.clip)));
   selectClip(0);replayPlaying=true;$('replay-play').textContent='Ⅱ';
@@ -101,7 +111,7 @@ function animate(now:number){
   if(dt>.5&&view==='play'&&game&&!game.paused)pause('long-frame');
   if(ready){
     if(view==='lobby'){
-      lobbyTime+=Math.min(dt,.05);const frame=lobbyGame.snapshot();frame.t=lobbyTime;frame.body.animTime=lobbyTime;frame.shadow.animTime=lobbyTime;frame.body.clocks.idle=lobbyTime;frame.shadow.clocks.idle=lobbyTime;frame.line='';scene.apply(frame);
+      lobbyTime+=Math.min(dt,.05);const frame=lobbyGame.snapshot();frame.t=lobbyTime;frame.body.animTime=lobbyTime;frame.shadow.animTime=lobbyTime;frame.body.clocks.idle=lobbyTime;frame.shadow.clocks.idle=lobbyTime;frame.line='';scene.apply(frame);sound.ambience(lobbyTime);
     }else if(view==='play'&&game&&!game.paused){
       const direction=input(),world=scene.screenInput(direction.x,direction.y);game.setInput(world.x,world.z);
       const active={up:direction.y<-.1,down:direction.y>.1,left:direction.x<-.1,right:direction.x>.1};
@@ -113,6 +123,7 @@ function animate(now:number){
       }
       const rendered=game.snapshot();if(previousTick){const alpha=accumulator*60;rendered.body=mixActor(previousTick.body,rendered.body,alpha);rendered.shadow=mixActor(previousTick.shadow,rendered.shadow,alpha);}scene.apply(rendered);$('subtitle').textContent=game.line;$('subtitle').classList.toggle('empty',!game.line);
       sound.step(game.body.gaitPhase,game.body.animation==='walk'||game.body.animation==='chase');
+      sound.ambience(game.time);
       if(game.stage==='ended')endReveal();
     }else if(view==='review'&&game){
       if(replayPlaying){replayTime=Math.min(clips[clipIndex].end,replayTime+Math.min(dt,.1));if(replayTime>=clips[clipIndex].end){replayPlaying=false;$('replay-play').textContent='▷';}}
@@ -132,7 +143,7 @@ $('pause-button').onclick=()=>pause();$('resume-button').onclick=resume;
 $('host-button').onclick=()=>{$('host-controls').hidden=!$('host-controls').hidden;};
 $('skip-button').onclick=()=>{game?.skip();$('host-controls').hidden=true;};
 $('end-button').onclick=()=>{game?.finish('host-ended');$('host-controls').hidden=true;};
-$('leave-button').onclick=()=>{if(game){game.resume();game.finish('host-ended');game.record();scene.apply(game.frames.at(-1)!);game.frames.at(-1)!.visual=scene.capture();review();}};
+$('leave-button').onclick=()=>{if(game){resume();game.finish(mode==='teacher'?'host-ended':'player-ended');}};
 $('new-button').onclick=()=>{screen('lobby');document.title='入场 · 正午排练场';scene.setEvidence(game!.snapshot(),[],false);};
 $('home-link').onclick=e=>{e.preventDefault();if(view==='play'){pause();return;}screen('lobby');document.title='入场 · 正午排练场';if(game)scene.setEvidence(game.snapshot(),[],false);};
 $('replay-play').onclick=()=>{if(replayTime>=clips[clipIndex].end)replayTime=clips[clipIndex].start;replayPlaying=!replayPlaying;$('replay-play').textContent=replayPlaying?'Ⅱ':'▷';};

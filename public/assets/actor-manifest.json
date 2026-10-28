@@ -1,6 +1,6 @@
 {
   "name": "Noon Traveler",
-  "assetVersion": 3,
+  "assetVersion": 4,
   "proportions": {
     "method": "Region proportions baked into rest mesh and skeleton; source torso acting and foot orientation retained, legs solved with two-bone IK, upper-arm swing reduced; per-frame sole support correction.",
     "jointScaleFactors": {
@@ -270,6 +270,22 @@
       "duration": 2.4,
       "loop": true,
       "frames": 73
+    },
+    "surprise": {
+      "source": null,
+      "duration": 1.2,
+      "loop": false,
+      "feetAnchored": true,
+      "peakTime": 0.32,
+      "frames": 37
+    },
+    "reach": {
+      "source": null,
+      "duration": 1.5,
+      "loop": false,
+      "feetAnchored": true,
+      "peakTime": 0.65,
+      "frames": 46
     }
   },
   "motionMetrics": {
@@ -316,6 +332,18 @@
       "feetMotionRange": 1.267295
     },
     "bow": {
+      "hipVerticalRange": 0.0,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.0,
+      "feetMotionRange": 0.0
+    },
+    "surprise": {
+      "hipVerticalRange": 0.0,
+      "rootHorizontalRange": 0.0,
+      "footLoopGap": 0.0,
+      "feetMotionRange": 0.0
+    },
+    "reach": {
       "hipVerticalRange": 0.0,
       "rootHorizontalRange": 0.0,
       "footLoopGap": 0.0,

@@ -1,4 +1,4 @@
-# 主角资产与动画（v3）
+# 主角资产与动画（v4）
 
 当前主角仍采用 **Kay Lousberg 的 KayKit Adventurers 1.0 / Hooded Rogue**，许可为 **CC0 1.0**。保留现成资产的拓扑、身体蒙皮与动作素材，再改为修长的舞台旅人比例。没有换角色主题，也没有使用付费 EXTRA 或 SOURCE 包。
 
@@ -10,7 +10,15 @@
 
 之前实际导入、渲染比较了免费 Mage。Hooded Rogue 的兜帽、脸部、靴子与披风轮廓更适合当前游戏，故继续改编它。原始两个 GLB 和候选预览仍保留。当前 `.blend` 是从免费 GLB 导入并修改的可编辑工程，不是作者的付费原始工程。
 
-## v3 比例与实现
+## v4 意外反应
+
+v4 仅增加两个项目制作的表演片段，基于当前站姿，不改变 v3 比例、网格、42 骨骼、原有 10 个动作或步幅。`surprise` 在约 0.32 秒出现短促抬头、肩部微提与双手反应，然后平滑回落；`reach` 在约 0.65 秒前倾并伸出右手，短暂停留后收回。两者都不跳跃、不移动根节点或骨盆；实际追随、迈步、转向与视线目标由引擎处理。披风有延迟响应。
+
+两个片段首尾均匹配 `idle` 首帧：`reach` 所有通道误差为 0，`surprise` 最大误差 5.6e-17。播放一次并正常淡入/淡出即可，不应每帧重新触发。姿态预览：`previews/surprise.png`、`previews/reach.png`、`previews/reach-side.png`。
+
+`assets-src/actor-v4-preservation.json` 记录与 v3 基线 GLB 的逐值比较：网格属性、索引、逆绑定矩阵和旧 10 个片段的采样时间/变换全部一致，最大差为 0；报告包含基线与当前 GLB 的 SHA-256。
+
+## 沿用 v3 的比例与实现
 
 同构图、按站立总高度归一的前后对比：`assets-src/previews/proportions-v2-v3.png`。图中人物总高度相当；游戏里新版人物另由运行时缩小 10%，两件事分开处理。
 
@@ -37,14 +45,16 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `public/assets/actor.glb` | 当前运行时角色，588,820 字节，完全自包含 |
+| `public/assets/actor.glb` | 当前运行时角色，629,868 字节，完全自包含 |
 | `public/assets/actor-manifest.json` | 尺寸、比例参数、材料、骨架、片段与测量值 |
-| `assets-src/noon-actor.blend` | 可编辑压缩工程，约 1.7 MB |
+| `assets-src/noon-actor.blend` | 可编辑压缩工程，约 1.9 MB |
 | `scripts/build_character.py` | 导入、配色、片段制作、导出与预览 |
 | `assets-src/retarget_proportions.py` | 比例烘焙、IK、足底支撑与手臂动作重定向 |
 | `assets-src/validate_actor.py` | GLB 数值、动作、循环与坐起衔接验证 |
 | `assets-src/validate_contact.py` | Blender 全片段逐帧接地审计 |
 | `assets-src/actor-validation.json` | 当前 GLB 验证结果 |
+| `assets-src/compare_actor_preservation.py` | 比较基线 GLB 与当前网格/旧片段 |
+| `assets-src/actor-v4-preservation.json` | v4 对 v3 的精确保留验证 |
 | `assets-src/actor-contact-validation.json` | 逐帧脚底、身体与披风高度范围 |
 | `assets-src/archive/build_character_v2.py` | 旧比例的可复现生成器；旧预览也在 archive 内 |
 
@@ -66,6 +76,8 @@
 | `bow` | 2.4 | 单次 | 站立→胸腰与头部鞠躬→站立 |
 | `turn` | 1.8 | 单次 | 上身与头转向再归位 |
 | `struggle` | 2.4 | 循环 | 双脚保持，胸肩、手臂、头部准备/抵抗 |
+| `surprise` | 1.2 | 单次 | 抬头、肩部微提与双手短促反应后归位 |
+| `reach` | 1.5 | 单次 | 前倾、伸右手想跟上，然后收回归位 |
 
 坐姿是坐在地面，双脚向前伸。坐下和起身期间保持角色世界根节点位置。`sit` 末帧与 `rise` 首帧所有导出变换完全一致；`rise` 末帧与 `idle` 首帧主体变换差小于 5.4e-7，仅披风待机循环相位有约 0.00449 的四元数分量差，可正常混合。`bow` 首尾站姿一致。
 
@@ -92,7 +104,8 @@
 - chase 双脚腾空最高 **0.05910665** 模型单位，保留跑步腾空。
 - sit 最后身体最低点 **0.00133967**；整个坐下片段披风最低点 **0.04984343**，不穿地。
 - 四个循环片段首尾变换误差为 0，最大接缝角速度差 < **2.6e-5 rad/s**，最大平移/缩放速度差 < **1.9e-5**。
-- 所有数值有限，保留 10 个动作、42 个关节，无外部资源引用。
+- 新增 `surprise` / `reach` 的骨盆与双脚位移范围均为 0，脚底高度约 -1e-7；披风最低点分别为 0.70658624 / 0.70658624，没有穿地。
+- 所有数值有限，共 12 个动作、42 个关节，无外部资源引用。
 
 这些是几何、动作与接地检查；最终 Toon 材质、动画混合和影子仍需在浏览器中检视。
 
@@ -102,4 +115,4 @@ python3 assets-src/validate_actor.py
 blender --background --python assets-src/validate_contact.py
 ```
 
-设置 `NOON_SKIP_PREVIEWS=1` 可只重建 GLB 和源工程。对比排版脚本 `assets-src/make_proportion_comparison.py` 需要 Pillow。Blender 使用官方 macOS arm64 4.5.15 LTS 临时镜像内的二进制，没有覆盖系统软件。
+设置 `NOON_SKIP_PREVIEWS=1` 可只重建 GLB 和源工程；`NOON_PREVIEW_CLIPS=surprise,reach` 只渲染新增动作预览，不重做旧预览。对比排版脚本 `assets-src/make_proportion_comparison.py` 需要 Pillow。Blender 使用官方 macOS arm64 4.5.15 LTS 临时镜像内的二进制，没有覆盖系统软件。

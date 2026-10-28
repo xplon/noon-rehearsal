@@ -4,7 +4,7 @@ from pathlib import Path
 R=Path(__file__).resolve().parents[1]
 bpy.ops.wm.open_mainfile(filepath=str(R/'assets-src/noon-actor.blend'))
 rig=bpy.data.objects['NoonTraveler'];meshes=[o for o in bpy.context.scene.objects if o.type=='MESH'];result={}
-for name in ['idle','walk','chase','look','shrug','sit','rise','bow','turn','struggle']:
+for name in ['idle','walk','chase','look','shrug','sit','rise','bow','turn','struggle','surprise','reach']:
  a=bpy.data.actions[name];rig.animation_data.action=a;rig.animation_data.action_slot=a.slots[0];rows=[]
  for f in range(round(a.frame_range[1])+1):
   bpy.context.scene.frame_set(f);deps=bpy.context.evaluated_depsgraph_get();mins={o.name:min((o.matrix_world@v.co).z for v in o.evaluated_get(deps).data.vertices) for o in meshes}

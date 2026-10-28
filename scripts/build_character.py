@@ -2,7 +2,7 @@
 
 Requires Blender 4.5. Original topology, body skin and source animation are Kay Lousberg's.
 Our changes: palette materials, unused-item removal, selected/resampled clips,
-five scene-specific acting clips, a 4.5-head proportion reshape with limb
+seven scene-specific acting clips, a 4.5-head proportion reshape with limb
 retargeting, and a real deforming cape with a seated fold.
 Blender Z-up/-Y forward -> GLB Y-up/+Z forward. See vendor/kaykit/LICENSE.txt.
 """
@@ -68,6 +68,8 @@ specs={
  'bow':dict(source=None,duration=2.4,loop=False),
  'turn':dict(source=None,duration=1.8,loop=False),
  'struggle':dict(source=None,duration=2.4,loop=True),
+ 'surprise':dict(source=None,duration=1.2,loop=False,feetAnchored=True,peakTime=.32),
+ 'reach':dict(source=None,duration=1.5,loop=False,feetAnchored=True,peakTime=.65),
 }
 source_samples={}
 for name,spec in specs.items():
@@ -144,6 +146,8 @@ def rotate(name,axis,angle):
  p=rig.pose.bones[name];world_axis=Vector(axis);local_axis=p.matrix.to_3x3().inverted()@world_axis
  p.rotation_quaternion=p.rotation_quaternion@Quaternion(local_axis,angle);bpy.context.view_layer.update()
 def envelope(u):return math.sin(math.pi*u)**2
+def smoothstep(x):
+ x=max(0,min(1,x));return x*x*(3-2*x)
 scene.render.fps=FPS;actions={}
 for name,spec in specs.items():
  count=round(spec['duration']*FPS)+1
@@ -164,6 +168,20 @@ for name,spec in specs.items():
    s=math.sin(2*math.pi*u);c=math.cos(2*math.pi*u);rotate('spine',(1,0,0),.11+.05*s);rotate('chest',(0,1,0),.06*c)
    rotate('head',(1,0,0),-.06-.04*s);rotate('upperarm.l',(1,0,0),-.16-.08*s);rotate('upperarm.r',(1,0,0),-.16+.08*s)
    rotate('upperarm.l',(0,1,0),-.13);rotate('upperarm.r',(0,1,0),.13);rotate('lowerarm.l',(1,0,0),-.25-.09*s);rotate('lowerarm.r',(1,0,0),-.25+.09*s)
+  elif name=='surprise':
+   e=smoothstep(u/.22)*(1-smoothstep((u-.30)/.70))
+   rotate('spine',(1,0,0),-.025*e);rotate('chest',(1,0,0),-.045*e);rotate('head',(1,0,0),-.15*e)
+   p=rig.pose.bones['chest'];m=p.matrix.copy();m.translation.z+=.025*e;p.matrix=m;bpy.context.view_layer.update()
+   rotate('upperarm.l',(1,0,0),-.22*e);rotate('upperarm.r',(1,0,0),-.27*e)
+   rotate('upperarm.l',(0,1,0),-.10*e);rotate('upperarm.r',(0,1,0),.10*e)
+   rotate('lowerarm.l',(1,0,0),-.30*e);rotate('lowerarm.r',(1,0,0),-.36*e)
+   rotate('head',(0,1,0),.035*e)
+  elif name=='reach':
+   e=smoothstep(u/.40)*(1-smoothstep((u-.58)/.42))
+   rotate('spine',(1,0,0),.10*e);rotate('chest',(1,0,0),.12*e);rotate('head',(1,0,0),-.12*e)
+   rotate('upperarm.r',(1,0,0),-.82*e);rotate('lowerarm.r',(1,0,0),-.48*e)
+   rotate('upperarm.r',(0,1,0),-.06*e);rotate('wrist.r',(0,1,0),.10*e)
+   rotate('upperarm.l',(1,0,0),-.19*e);rotate('lowerarm.l',(1,0,0),-.10*e)
   if name in ['sit','rise']:
    seated=max(0,min(1,(stand_hips_height-rig.pose.bones['hips'].head.z)/(stand_hips_height-.07)))
    rotate('cape.tip',(1,0,0),1.0*seated)
@@ -171,6 +189,10 @@ for name,spec in specs.items():
   amp=.042 if name=='walk' else .065 if name=='chase' else .014
   if spec['loop']:rotate('cape.tip',(1,0,0),amp*math.sin(2*math.pi*u-.7));rotate('cape.tip',(0,1,0),amp*.35*math.sin(2*math.pi*u))
   else:rotate('cape.tip',(1,0,0),amp*math.sin(2*math.pi*u)*envelope(u))
+  if name in ['surprise','reach']:
+   # Match idle's first-frame cloth offset at both ends; add delayed reaction.
+   cloth_e=smoothstep((u-.04)/.28)*(1-smoothstep((u-.45)/.55))
+   rotate('cape.tip',(1,0,0),.014*math.sin(-.7)+(.10 if name=='reach' else -.035)*cloth_e)
   for p in rig.pose.bones:
    p.keyframe_insert('location',frame=i,group=p.name);p.keyframe_insert('rotation_quaternion',frame=i,group=p.name);p.keyframe_insert('scale',frame=i,group=p.name)
  for layer in action.layers:
@@ -197,7 +219,7 @@ for name,spec in specs.items():
  action.use_fake_user=True;spec['frames']=count;spec['duration']=round((count-1)/FPS,6)
 # Evidence metrics measured on final exported-motion rig, not inferred from names.
 metrics={}
-for name in ['idle','walk','chase','struggle','sit','rise','bow']:
+for name in ['idle','walk','chase','struggle','sit','rise','bow','surprise','reach']:
  set_action(actions[name]);rows=[];count=specs[name]['frames']
  for i in range(count):
   frame(i);rows.append({n:list(rig.matrix_world@rig.pose.bones[n].head) for n in ['root','hips','foot.l','foot.r','toes.l','toes.r']})
@@ -217,7 +239,7 @@ proportions['visibleHoodHeight']=max(head_z)-min(head_z);proportions['standingHe
 for n in ['walk','chase']:
  specs[n]['strideLength']=round(metrics[n]['stanceFitCycleDistance'],3)
 triangles=sum(len(p.vertices)-2 for o in meshes for p in o.data.polygons);vertices=sum(len(o.data.vertices) for o in meshes)
-manifest={'name':'Noon Traveler','assetVersion':3,'proportions':proportions,'source':'KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg','license':'CC0-1.0','sourceCommit':'672074b73ba276876a19e8816ecdc5241817ab47','height':round(height,6),'groundOffset':bounds['height'][0],'bounds':bounds,'forward':'+Z','up':'+Y','rootMotion':False,'bones':len(rig.data.bones),'boneNames':[b.name for b in rig.data.bones],'triangles':triangles,'vertices':vertices,'materials':palette,'clips':specs,'motionMetrics':metrics,'notes':['Sit ends and holds a floor-seated pose; feet extend forward.','Bow begins and ends in the same standing pose.','Walk/chase stride is approximate; source hand-keyed motion has measurable stance slip.','Palette baked into ordinary flat materials; no texture map required.']}
+manifest={'name':'Noon Traveler','assetVersion':4,'proportions':proportions,'source':'KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg','license':'CC0-1.0','sourceCommit':'672074b73ba276876a19e8816ecdc5241817ab47','height':round(height,6),'groundOffset':bounds['height'][0],'bounds':bounds,'forward':'+Z','up':'+Y','rootMotion':False,'bones':len(rig.data.bones),'boneNames':[b.name for b in rig.data.bones],'triangles':triangles,'vertices':vertices,'materials':palette,'clips':specs,'motionMetrics':metrics,'notes':['Sit ends and holds a floor-seated pose; feet extend forward.','Bow begins and ends in the same standing pose.','Walk/chase stride is approximate; source hand-keyed motion has measurable stance slip.','Palette baked into ordinary flat materials; no texture map required.']}
 (OUT/'actor-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 # Remove source materials/images unused by the derived character before source saving.
 for m in list(bpy.data.materials):
@@ -237,7 +259,9 @@ bpy.ops.mesh.primitive_plane_add(size=200);ground=bpy.context.object;ground.loca
 for loc,power,size in [((3,-4,6),430,5),((-3,-2,4),140,4),((0,3,5),260,3)]:
  bpy.ops.object.light_add(type='AREA',location=loc);o=bpy.context.object;o.data.energy=power;o.data.shape='DISK';o.data.size=size;o.rotation_euler=(Vector((0,0,1))-o.location).to_track_quat('-Z','Y').to_euler()
 bpy.ops.object.camera_add();camera=bpy.context.object;camera.data.type='ORTHO';camera.data.ortho_scale=height*(2.95/2.238505);scene.camera=camera
-views=[('front','idle',0,(0,-6,2.7)),('side','idle',0,(6,0,2.7)),('back','idle',0,(0,6,2.7)),('three-quarter','idle',0,(3,-6,3)),('walk-contact','walk',0,(3,-6,3)),('walk-pass','walk',9,(3,-6,3)),('walk-lift','walk',24,(3,-6,3)),('chase','chase',6,(3,-6,3)),('sit','sit',66,(3,-6,3)),('rise','rise',21,(3,-6,3)),('bow','bow',36,(3,-6,3)),('shrug','shrug',33,(3,-6,3)),('struggle','struggle',18,(3,-6,3))]
+views=[('front','idle',0,(0,-6,2.7)),('side','idle',0,(6,0,2.7)),('back','idle',0,(0,6,2.7)),('three-quarter','idle',0,(3,-6,3)),('walk-contact','walk',0,(3,-6,3)),('walk-pass','walk',9,(3,-6,3)),('walk-lift','walk',24,(3,-6,3)),('chase','chase',6,(3,-6,3)),('sit','sit',66,(3,-6,3)),('rise','rise',21,(3,-6,3)),('bow','bow',36,(3,-6,3)),('shrug','shrug',33,(3,-6,3)),('struggle','struggle',18,(3,-6,3)),('surprise','surprise',10,(3,-6,3)),('reach','reach',20,(-3,-6,3)),('reach-side','reach',20,(-6,0,2.7))]
+if os.environ.get('NOON_PREVIEW_CLIPS'):
+ selected=set(os.environ['NOON_PREVIEW_CLIPS'].split(','));views=[v for v in views if v[1] in selected]
 for name,clip,fr,loc in ([] if os.environ.get('NOON_SKIP_PREVIEWS') else views):
  set_action(actions[clip]);frame(fr);camera.location=Vector(loc)*(height/2.238505);camera.rotation_euler=(Vector((0,0,height*.5))-camera.location).to_track_quat('-Z','Y').to_euler();scene.render.filepath=str(PREVIEW/f'{name}.png');bpy.ops.render.render(write_still=True)
 print('ASSET_RESULT',json.dumps(manifest))

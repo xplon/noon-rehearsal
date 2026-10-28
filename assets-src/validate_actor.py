@@ -27,15 +27,17 @@ for anim in g['animations']:
   else:linear.append(max(abs((v[1][k]-v[0][k])/(t[1]-t[0])-(v[-1][k]-v[-2][k])/(t[-1]-t[-2])) for k in range(len(v[0]))))
  report['clips'][anim['name']]={'duration':round(duration,6),'endpointComponentGap':max(gaps),'angularVelocitySeamRadPerSec':max(rotation,default=0),'linearVelocitySeam':max(linear,default=0),'loop':anim['name'] in loops}
  if anim['name'] in loops:assert max(gaps)<1e-5;assert max(rotation,default=0)<.001;assert max(linear,default=0)<.0001
-assert {a['name'] for a in g['animations']}=={'idle','walk','chase','look','shrug','sit','rise','bow','turn','struggle'}
+assert {a['name'] for a in g['animations']}=={'idle','walk','chase','look','shrug','sit','rise','bow','turn','struggle','surprise','reach'}
 anims={a['name']:a for a in g['animations']}
 def pose(name,index):
  a=anims[name];return {(c['target']['node'],c['target']['path']):acc(a['samplers'][c['sampler']]['output'])[index] for c in a['channels']}
 report['transitions']={}
-for n1,i1,n2,i2 in [('sit',-1,'rise',0),('rise',-1,'idle',0),('idle',0,'sit',0)]:
+for n1,i1,n2,i2 in [('sit',-1,'rise',0),('rise',-1,'idle',0),('idle',0,'sit',0),('idle',0,'surprise',0),('surprise',-1,'idle',0),('idle',0,'reach',0),('reach',-1,'idle',0)]:
  a=pose(n1,i1);b=pose(n2,i2);rows=[(max(abs(x-y) for x,y in zip(v,b[k])),g['nodes'][k[0]]['name']) for k,v in a.items() if k in b]
  report['transitions'][n1+'->'+n2]={'maxComponentGap':max(v for v,_ in rows),'maxBodyGap':max(v for v,n in rows if n!='cape.tip')}
 assert report['transitions']['sit->rise']['maxComponentGap']<1e-5
 assert report['transitions']['rise->idle']['maxBodyGap']<1e-5
+for name in ['idle->surprise','surprise->idle','idle->reach','reach->idle']:
+ assert report['transitions'][name]['maxComponentGap']<1e-5
 (root/'assets-src/actor-validation.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))
