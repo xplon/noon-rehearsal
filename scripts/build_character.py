@@ -2,7 +2,7 @@
 
 Requires Blender 4.5. Original topology, body skin and source animation are Kay Lousberg's.
 Our changes: palette materials, unused-item removal, selected/resampled clips,
-seven scene-specific acting clips, a 4.5-head proportion reshape with limb
+nine scene-specific acting clips, a 4.5-head proportion reshape with limb
 retargeting, and a real deforming cape with a seated fold.
 Blender Z-up/-Y forward -> GLB Y-up/+Z forward. See vendor/kaykit/LICENSE.txt.
 """
@@ -70,6 +70,8 @@ specs={
  'struggle':dict(source=None,duration=2.4,loop=True),
  'surprise':dict(source=None,duration=1.2,loop=False,feetAnchored=True,peakTime=.32),
  'reach':dict(source=None,duration=1.5,loop=False,feetAnchored=True,peakTime=.65),
+ 'pivot_left':dict(source=None,duration=28/30,loop=True,turnAnglePerCycle=math.pi/2,footworkOnly=True),
+ 'pivot_right':dict(source=None,duration=28/30,loop=True,turnAnglePerCycle=math.pi/2,footworkOnly=True),
 }
 source_samples={}
 for name,spec in specs.items():
@@ -148,13 +150,63 @@ def rotate(name,axis,angle):
 def envelope(u):return math.sin(math.pi*u)**2
 def smoothstep(x):
  x=max(0,min(1,x));return x*x*(3-2*x)
+# Pivot footwork is authored against the final proportions with two-bone IK.
+# The stage rotates the root. These clips only make the foot placements readable;
+# head yaw remains the director's world-space gaze, not a second baked turn.
+apply_pose(base)
+pivot_base={p.name:p.matrix.copy() for p in rig.pose.bones}
+pivot_descendants={p.name for p in rig.pose.bones if p.name=='hips' or any(a.name=='hips' for a in p.parent_recursive)}
+def pivot_pose(u,sign):
+ world={n:m.copy() for n,m in pivot_base.items()}
+ # Smooth, small vertical transfer; no root/hips X or Y translation.
+ drop=-.008*math.sin(2*math.pi*u)**2
+ for n in pivot_descendants:world[n].translation.z+=drop
+ first='r' if sign>0 else 'l'
+ for side in ['l','r']:
+  start=0 if side==first else .5
+  phase=(u-start)*2
+  lift=math.sin(math.pi*phase)**2 if 0<phase<1 else 0
+  un,ln,fn,tn=['upperleg.'+side,'lowerleg.'+side,'foot.'+side,'toes.'+side]
+  hip=world[un].translation.copy();ankle=pivot_base[fn].translation.copy()
+  ankle.z+=.11*lift
+  # A modest outward pickup avoids a marching-in-place silhouette.
+  ankle.x+=(.020 if side=='l' else -.020)*lift
+  ankle.y-=.018*lift
+  knee0=pivot_base[ln].translation;hip0=pivot_base[un].translation;ankle0=pivot_base[fn].translation
+  L1=(knee0-hip0).length;L2=(ankle0-knee0).length
+  delta=ankle-hip;d=min(delta.length,(L1+L2)*.999);direction=delta.normalized();ankle=hip+direction*d
+  along=(L1*L1-L2*L2+d*d)/(2*d);height=math.sqrt(max(0,L1*L1-along*along))
+  pole=knee0-hip0;pole-=direction*pole.dot(direction)
+  if pole.length<.01:pole=Vector((0,-1,0));pole-=direction*pole.dot(direction)
+  knee=hip+direction*along+pole.normalized()*height
+  for n,a,b,end in [(un,hip,knee,ln),(ln,knee,ankle,fn)]:
+   before=(pivot_base[end].translation-pivot_base[n].translation).normalized()
+   q=before.rotation_difference((b-a).normalized())@pivot_base[n].to_quaternion()
+   world[n]=Matrix.LocRotScale(a,q,Vector((1,1,1)))
+  q=Quaternion((0,0,1),sign*.10*lift)@pivot_base[fn].to_quaternion()
+  world[fn]=Matrix.LocRotScale(ankle,q,Vector((1,1,1)))
+  toe_local=pivot_base[fn].to_quaternion().inverted()@(pivot_base[tn].translation-pivot_base[fn].translation)
+  world[tn]=Matrix.LocRotScale(ankle+q@toe_local,q@pivot_base[fn].to_quaternion().inverted()@pivot_base[tn].to_quaternion(),Vector((1,1,1)))
+ pose={}
+ for b in rig.data.bones:
+  kw={'parent_matrix':world[b.parent.name],'parent_matrix_local':b.parent.matrix_local} if b.parent else {}
+  pose[b.name]=b.convert_local_to_pose(world[b.name],b.matrix_local,invert=True,**kw).decompose()
+ apply_pose(pose)
+ # Arms and chest react very slightly, without competing with the gaze overlay.
+ transfer=math.sin(2*math.pi*u)*math.sin(math.pi*u)**2
+ rotate('chest',(0,1,0),.014*transfer)
+ rotate('upperarm.l',(1,0,0),.022*transfer)
+ rotate('upperarm.r',(1,0,0),-.022*transfer)
+
 scene.render.fps=FPS;actions={}
 for name,spec in specs.items():
  count=round(spec['duration']*FPS)+1
  action=bpy.data.actions.new(name);rig.animation_data.action=action;actions[name]=action
  for i in range(count):
   u=i/(count-1);apply_pose(source_samples[name][i] if name in source_samples else base)
-  if name=='look':
+  if name.startswith('pivot_'):
+   pivot_pose(u,1 if name=='pivot_right' else -1)
+  elif name=='look':
    a=math.sin(2*math.pi*u)*envelope(u);rotate('head',(0,0,1),.52*a);rotate('chest',(0,0,1),.10*a)
   elif name=='shrug':
    e=envelope(u);rotate('upperarm.l',(0,1,0),-.29*e);rotate('upperarm.r',(0,1,0),.29*e)
@@ -203,7 +255,9 @@ for name,spec in specs.items():
     if spec['loop'] and len(curve.keyframe_points)>3:
      keys=curve.keyframe_points;v0=keys[0].co.y;vn=keys[-1].co.y
      # Symmetric endpoint tangent: C1 continuity for the baked linear channels.
-     d=((keys[1].co.y-v0)+(vn-keys[-2].co.y))*.5
+     # Pivot returns to double support: zero seam velocity avoids pushing
+     # the opposite planted sole below ground when averaging alternating lifts.
+     d=0 if name.startswith('pivot_') else ((keys[1].co.y-v0)+(vn-keys[-2].co.y))*.5
      keys[-1].co.y=v0;keys[1].co.y=v0+d;keys[-2].co.y=v0-d
  # Quaternion tangent projection makes the loop's angular velocity symmetric.
  for layer in action.layers:
@@ -219,7 +273,7 @@ for name,spec in specs.items():
  action.use_fake_user=True;spec['frames']=count;spec['duration']=round((count-1)/FPS,6)
 # Evidence metrics measured on final exported-motion rig, not inferred from names.
 metrics={}
-for name in ['idle','walk','chase','struggle','sit','rise','bow','surprise','reach']:
+for name in ['idle','walk','chase','struggle','sit','rise','bow','surprise','reach','pivot_left','pivot_right']:
  set_action(actions[name]);rows=[];count=specs[name]['frames']
  for i in range(count):
   frame(i);rows.append({n:list(rig.matrix_world@rig.pose.bones[n].head) for n in ['root','hips','foot.l','foot.r','toes.l','toes.r']})
@@ -239,7 +293,7 @@ proportions['visibleHoodHeight']=max(head_z)-min(head_z);proportions['standingHe
 for n in ['walk','chase']:
  specs[n]['strideLength']=round(metrics[n]['stanceFitCycleDistance'],3)
 triangles=sum(len(p.vertices)-2 for o in meshes for p in o.data.polygons);vertices=sum(len(o.data.vertices) for o in meshes)
-manifest={'name':'Noon Traveler','assetVersion':4,'proportions':proportions,'source':'KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg','license':'CC0-1.0','sourceCommit':'672074b73ba276876a19e8816ecdc5241817ab47','height':round(height,6),'groundOffset':bounds['height'][0],'bounds':bounds,'forward':'+Z','up':'+Y','rootMotion':False,'bones':len(rig.data.bones),'boneNames':[b.name for b in rig.data.bones],'triangles':triangles,'vertices':vertices,'materials':palette,'clips':specs,'motionMetrics':metrics,'notes':['Sit ends and holds a floor-seated pose; feet extend forward.','Bow begins and ends in the same standing pose.','Walk/chase stride is approximate; source hand-keyed motion has measurable stance slip.','Palette baked into ordinary flat materials; no texture map required.']}
+manifest={'name':'Noon Traveler','assetVersion':5,'proportions':proportions,'source':'KayKit Adventurers 1.0 Hooded Rogue by Kay Lousberg','license':'CC0-1.0','sourceCommit':'672074b73ba276876a19e8816ecdc5241817ab47','height':round(height,6),'groundOffset':bounds['height'][0],'bounds':bounds,'forward':'+Z','up':'+Y','rootMotion':False,'bones':len(rig.data.bones),'boneNames':[b.name for b in rig.data.bones],'triangles':triangles,'vertices':vertices,'materials':palette,'clips':specs,'motionMetrics':metrics,'notes':['Sit ends and holds a floor-seated pose; feet extend forward.','Bow begins and ends in the same standing pose.','Walk/chase stride is approximate; source hand-keyed motion has measurable stance slip.','Palette baked into ordinary flat materials; no texture map required.']}
 (OUT/'actor-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 # Remove source materials/images unused by the derived character before source saving.
 for m in list(bpy.data.materials):
@@ -259,7 +313,7 @@ bpy.ops.mesh.primitive_plane_add(size=200);ground=bpy.context.object;ground.loca
 for loc,power,size in [((3,-4,6),430,5),((-3,-2,4),140,4),((0,3,5),260,3)]:
  bpy.ops.object.light_add(type='AREA',location=loc);o=bpy.context.object;o.data.energy=power;o.data.shape='DISK';o.data.size=size;o.rotation_euler=(Vector((0,0,1))-o.location).to_track_quat('-Z','Y').to_euler()
 bpy.ops.object.camera_add();camera=bpy.context.object;camera.data.type='ORTHO';camera.data.ortho_scale=height*(2.95/2.238505);scene.camera=camera
-views=[('front','idle',0,(0,-6,2.7)),('side','idle',0,(6,0,2.7)),('back','idle',0,(0,6,2.7)),('three-quarter','idle',0,(3,-6,3)),('walk-contact','walk',0,(3,-6,3)),('walk-pass','walk',9,(3,-6,3)),('walk-lift','walk',24,(3,-6,3)),('chase','chase',6,(3,-6,3)),('sit','sit',66,(3,-6,3)),('rise','rise',21,(3,-6,3)),('bow','bow',36,(3,-6,3)),('shrug','shrug',33,(3,-6,3)),('struggle','struggle',18,(3,-6,3)),('surprise','surprise',10,(3,-6,3)),('reach','reach',20,(-3,-6,3)),('reach-side','reach',20,(-6,0,2.7))]
+views=[('front','idle',0,(0,-6,2.7)),('side','idle',0,(6,0,2.7)),('back','idle',0,(0,6,2.7)),('three-quarter','idle',0,(3,-6,3)),('walk-contact','walk',0,(3,-6,3)),('walk-pass','walk',9,(3,-6,3)),('walk-lift','walk',24,(3,-6,3)),('chase','chase',6,(3,-6,3)),('sit','sit',66,(3,-6,3)),('rise','rise',21,(3,-6,3)),('bow','bow',36,(3,-6,3)),('shrug','shrug',33,(3,-6,3)),('struggle','struggle',18,(3,-6,3)),('surprise','surprise',10,(3,-6,3)),('reach','reach',20,(-3,-6,3)),('reach-side','reach',20,(-6,0,2.7)),('pivot-right-contact','pivot_right',0,(3,-6,3)),('pivot-right-first','pivot_right',7,(3,-6,3)),('pivot-right-transfer','pivot_right',14,(3,-6,3)),('pivot-right-second','pivot_right',21,(3,-6,3)),('pivot-left-first','pivot_left',7,(-3,-6,3))]
 if os.environ.get('NOON_PREVIEW_CLIPS'):
  selected=set(os.environ['NOON_PREVIEW_CLIPS'].split(','));views=[v for v in views if v[1] in selected]
 for name,clip,fr,loc in ([] if os.environ.get('NOON_SKIP_PREVIEWS') else views):

@@ -1,0 +1,20 @@
+{
+  "pivot_left": {
+    "soleMin": -5.079826223663986e-05,
+    "supportSoleMax": 9.838113328441978e-05,
+    "leftSoleLift": 0.1095978272787761,
+    "rightSoleLift": 0.10960046558466274,
+    "supportAnkleMaxDisplacement": 2.384185791015625e-07,
+    "rootHorizontalRange": 0.0,
+    "hipsHorizontalRange": 1.0658141036401503e-14
+  },
+  "pivot_right": {
+    "soleMin": -5.079826223663986e-05,
+    "supportSoleMax": 9.838113328441978e-05,
+    "leftSoleLift": 0.1095978123776149,
+    "rightSoleLift": 0.10960046558466274,
+    "supportAnkleMaxDisplacement": 2.384185791015625e-07,
+    "rootHorizontalRange": 0.0,
+    "hipsHorizontalRange": 1.0658141036401503e-14
+  }
+}

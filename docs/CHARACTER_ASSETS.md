@@ -1,4 +1,4 @@
-# 主角资产与动画（v4）
+# 主角资产与动画（v5）
 
 当前主角仍采用 **Kay Lousberg 的 KayKit Adventurers 1.0 / Hooded Rogue**，许可为 **CC0 1.0**。保留现成资产的拓扑、身体蒙皮与动作素材，再改为修长的舞台旅人比例。没有换角色主题，也没有使用付费 EXTRA 或 SOURCE 包。
 
@@ -10,7 +10,19 @@
 
 之前实际导入、渲染比较了免费 Mage。Hooded Rogue 的兜帽、脸部、靴子与披风轮廓更适合当前游戏，故继续改编它。原始两个 GLB 和候选预览仍保留。当前 `.blend` 是从免费 GLB 导入并修改的可编辑工程，不是作者的付费原始工程。
 
-## v4 意外反应
+## v5 原地转身脚步
+
+v5 增加 `pivot_left` / `pivot_right`，现有 v4 网格、蒙皮、42 骨骼、12 个片段与步幅不变。每个循环 28/30 秒（0.933333 秒，含重复尾帧共 29 帧），方向侧的脚先抬起，另一脚随后跟进；双脚之间有站稳换重心的时刻。脚底最高抬起约 0.1096 模型单位，骨盆仅上下 0.008，手臂不做夸张摆动。
+
+这两个片段只负责脚部表演，**不烘焙根节点转向、水平移动或头部转向**。运行时先用世界坐标目标引导目光，再旋转角色根节点并混入对应脚步，朝向合适后才能开始平移和走路。建议以实际累计转角驱动相位：`phase += abs(deltaHeading) / (π / 2)`，通过 `phase % 1` 采样，转动一整圈相当于四次完整的左右换脚。`turnAnglePerCycle` 已写入 manifest。不要用旧 `turn` 片段叠加头部寻找动作；头部视线由引擎独立处理。两种方向切换时保持相位，并平滑调整权重。
+
+`assets-src/actor-v5-preservation.json` 对 git HEAD 保存的 v4 GLB 做了逐值比较：所有旧网格属性、索引、逆绑定矩阵、12 片段采样时间与变换的最大差均为 0。新增片段首尾变换相同，与 `idle` 首帧的最大变换分量差为 3.66e-7；循环接缝平移与角速度差为 0。头部局部四元数全程不变，导出骨盆 XZ 变化小于 1.2e-9。
+
+`assets-src/actor-pivot-contact-validation.json` 使用实际蒙皮后脚部顶点审计，脚底最低约 -5.08e-5，支撑脚脚底最高约 9.84e-5 模型单位；支撑脚脚踝坐标变化小于 2.4e-7。该审计针对资产自身；外部根节点旋转、视线叠加与动画混合仍需要运行时验证，不代表世界空间脚锁定。通用循环切线平均会让交替脚步边界轻微下穿，故 v5 的两个循环在双脚支撑接缝使用零速度切线。
+
+已渲染并检查五个实际姿势，汇总图为 `assets-src/previews/pivot-v5-contact-sheet.png`，可用 `assets-src/make_pivot_preview.py` 重新排版。
+
+## 沿用 v4 的意外反应
 
 v4 仅增加两个项目制作的表演片段，基于当前站姿，不改变 v3 比例、网格、42 骨骼、原有 10 个动作或步幅。`surprise` 在约 0.32 秒出现短促抬头、肩部微提与双手反应，然后平滑回落；`reach` 在约 0.65 秒前倾并伸出右手，短暂停留后收回。两者都不跳跃、不移动根节点或骨盆；实际追随、迈步、转向与视线目标由引擎处理。披风有延迟响应。
 
@@ -45,9 +57,9 @@ v4 仅增加两个项目制作的表演片段，基于当前站姿，不改变 v
 
 | 文件 | 内容 |
 | --- | --- |
-| `public/assets/actor.glb` | 当前运行时角色，629,868 字节，完全自包含 |
+| `public/assets/actor.glb` | 当前运行时角色，677,348 字节，完全自包含 |
 | `public/assets/actor-manifest.json` | 尺寸、比例参数、材料、骨架、片段与测量值 |
-| `assets-src/noon-actor.blend` | 可编辑压缩工程，约 1.9 MB |
+| `assets-src/noon-actor.blend` | 可编辑压缩工程，约 2.0 MB |
 | `scripts/build_character.py` | 导入、配色、片段制作、导出与预览 |
 | `assets-src/retarget_proportions.py` | 比例烘焙、IK、足底支撑与手臂动作重定向 |
 | `assets-src/validate_actor.py` | GLB 数值、动作、循环与坐起衔接验证 |
@@ -55,6 +67,9 @@ v4 仅增加两个项目制作的表演片段，基于当前站姿，不改变 v
 | `assets-src/actor-validation.json` | 当前 GLB 验证结果 |
 | `assets-src/compare_actor_preservation.py` | 比较基线 GLB 与当前网格/旧片段 |
 | `assets-src/actor-v4-preservation.json` | v4 对 v3 的精确保留验证 |
+| `assets-src/actor-v5-preservation.json` | v5 对 v4 的精确保留验证 |
+| `assets-src/actor-pivot-contact-validation.json` | 新转身片段逐脚接地与根/骨盆固定检查 |
+| `assets-src/make_pivot_preview.py` | 新转身片段五姿势汇总图 |
 | `assets-src/actor-contact-validation.json` | 逐帧脚底、身体与披风高度范围 |
 | `assets-src/archive/build_character_v2.py` | 旧比例的可复现生成器；旧预览也在 archive 内 |
 
@@ -78,6 +93,8 @@ v4 仅增加两个项目制作的表演片段，基于当前站姿，不改变 v
 | `struggle` | 2.4 | 循环 | 双脚保持，胸肩、手臂、头部准备/抵抗 |
 | `surprise` | 1.2 | 单次 | 抬头、肩部微提与双手短促反应后归位 |
 | `reach` | 1.5 | 单次 | 前倾、伸右手想跟上，然后收回归位 |
+| `pivot_left` | 0.933333 | 循环 | 左脚先提起、右脚跟进的原地脚步；根转向由运行时控制 |
+| `pivot_right` | 0.933333 | 循环 | 右脚先提起、左脚跟进的原地脚步；根转向由运行时控制 |
 
 坐姿是坐在地面，双脚向前伸。坐下和起身期间保持角色世界根节点位置。`sit` 末帧与 `rise` 首帧所有导出变换完全一致；`rise` 末帧与 `idle` 首帧主体变换差小于 5.4e-7，仅披风待机循环相位有约 0.00449 的四元数分量差，可正常混合。`bow` 首尾站姿一致。
 
@@ -103,9 +120,9 @@ v4 仅增加两个项目制作的表演片段，基于当前站姿，不改变 v
 - idle、sit、rise、bow、look、shrug、turn、struggle 的脚底基准误差接近浮点 0。
 - chase 双脚腾空最高 **0.05910665** 模型单位，保留跑步腾空。
 - sit 最后身体最低点 **0.00133967**；整个坐下片段披风最低点 **0.04984343**，不穿地。
-- 四个循环片段首尾变换误差为 0，最大接缝角速度差 < **2.6e-5 rad/s**，最大平移/缩放速度差 < **1.9e-5**。
+- 六个循环片段首尾变换误差为 0，最大接缝角速度差 < **2.6e-5 rad/s**，最大平移/缩放速度差 < **1.9e-5**。
 - 新增 `surprise` / `reach` 的骨盆与双脚位移范围均为 0，脚底高度约 -1e-7；披风最低点分别为 0.70658624 / 0.70658624，没有穿地。
-- 所有数值有限，共 12 个动作、42 个关节，无外部资源引用。
+- 所有数值有限，共 14 个动作、42 个关节，无外部资源引用。
 
 这些是几何、动作与接地检查；最终 Toon 材质、动画混合和影子仍需在浏览器中检视。
 
@@ -115,4 +132,4 @@ python3 assets-src/validate_actor.py
 blender --background --python assets-src/validate_contact.py
 ```
 
-设置 `NOON_SKIP_PREVIEWS=1` 可只重建 GLB 和源工程；`NOON_PREVIEW_CLIPS=surprise,reach` 只渲染新增动作预览，不重做旧预览。对比排版脚本 `assets-src/make_proportion_comparison.py` 需要 Pillow。Blender 使用官方 macOS arm64 4.5.15 LTS 临时镜像内的二进制，没有覆盖系统软件。
+设置 `NOON_SKIP_PREVIEWS=1` 可只重建 GLB 和源工程；`NOON_PREVIEW_CLIPS=pivot_left,pivot_right` 只渲染新增动作预览，不重做旧预览。对比排版脚本 `assets-src/make_proportion_comparison.py` 需要 Pillow。Blender 使用官方 macOS arm64 4.5.15 LTS 临时镜像内的二进制，没有覆盖系统软件。

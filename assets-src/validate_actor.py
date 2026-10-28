@@ -16,7 +16,7 @@ def angular(a,b,dt):
  si=math.sqrt(sum(x*x for x in q[:3]));angle=2*math.atan2(si,q[3]);return [x*(angle/si/dt if si>1e-10 else 0) for x in q[:3]]
 for i in range(len(g['accessors'])):
  assert all(math.isfinite(x) for row in acc(i) for x in row),f'nonfinite accessor {i}'
-loops={'idle','walk','chase','struggle'};report={'bytes':len(b),'skins':len(g['skins']),'joints':len(g['skins'][0]['joints']),'embeddedOnly':not any('uri' in x for x in g.get('buffers',[])+g.get('images',[])),'clips':{}}
+loops={'idle','walk','chase','struggle','pivot_left','pivot_right'};report={'bytes':len(b),'skins':len(g['skins']),'joints':len(g['skins'][0]['joints']),'embeddedOnly':not any('uri' in x for x in g.get('buffers',[])+g.get('images',[])),'clips':{}}
 for anim in g['animations']:
  gaps=[];rotation=[];linear=[];duration=0
  for ch in anim['channels']:
@@ -27,17 +27,27 @@ for anim in g['animations']:
   else:linear.append(max(abs((v[1][k]-v[0][k])/(t[1]-t[0])-(v[-1][k]-v[-2][k])/(t[-1]-t[-2])) for k in range(len(v[0]))))
  report['clips'][anim['name']]={'duration':round(duration,6),'endpointComponentGap':max(gaps),'angularVelocitySeamRadPerSec':max(rotation,default=0),'linearVelocitySeam':max(linear,default=0),'loop':anim['name'] in loops}
  if anim['name'] in loops:assert max(gaps)<1e-5;assert max(rotation,default=0)<.001;assert max(linear,default=0)<.0001
-assert {a['name'] for a in g['animations']}=={'idle','walk','chase','look','shrug','sit','rise','bow','turn','struggle','surprise','reach'}
+assert {a['name'] for a in g['animations']}=={'idle','walk','chase','look','shrug','sit','rise','bow','turn','struggle','surprise','reach','pivot_left','pivot_right'}
 anims={a['name']:a for a in g['animations']}
 def pose(name,index):
  a=anims[name];return {(c['target']['node'],c['target']['path']):acc(a['samplers'][c['sampler']]['output'])[index] for c in a['channels']}
 report['transitions']={}
-for n1,i1,n2,i2 in [('sit',-1,'rise',0),('rise',-1,'idle',0),('idle',0,'sit',0),('idle',0,'surprise',0),('surprise',-1,'idle',0),('idle',0,'reach',0),('reach',-1,'idle',0)]:
+for n1,i1,n2,i2 in [('sit',-1,'rise',0),('rise',-1,'idle',0),('idle',0,'sit',0),('idle',0,'surprise',0),('surprise',-1,'idle',0),('idle',0,'reach',0),('reach',-1,'idle',0),('idle',0,'pivot_left',0),('pivot_left',-1,'idle',0),('idle',0,'pivot_right',0),('pivot_right',-1,'idle',0)]:
  a=pose(n1,i1);b=pose(n2,i2);rows=[(max(abs(x-y) for x,y in zip(v,b[k])),g['nodes'][k[0]]['name']) for k,v in a.items() if k in b]
  report['transitions'][n1+'->'+n2]={'maxComponentGap':max(v for v,_ in rows),'maxBodyGap':max(v for v,n in rows if n!='cape.tip')}
 assert report['transitions']['sit->rise']['maxComponentGap']<1e-5
 assert report['transitions']['rise->idle']['maxBodyGap']<1e-5
-for name in ['idle->surprise','surprise->idle','idle->reach','reach->idle']:
+for name in ['idle->surprise','surprise->idle','idle->reach','reach->idle','idle->pivot_left','pivot_left->idle','idle->pivot_right','pivot_right->idle']:
  assert report['transitions'][name]['maxComponentGap']<1e-5
+report['pivots']={}
+for name in ['pivot_left','pivot_right']:
+ a=anims[name];checks={}
+ for c in a['channels']:
+  node=g['nodes'][c['target']['node']]['name'];path=c['target']['path'];v=acc(a['samplers'][c['sampler']]['output'])
+  if node in ['root','hips'] and path=='translation':
+   checks[node+'HorizontalRange']=max(max(r[k] for r in v)-min(r[k] for r in v) for k in [0,2])
+  if node=='head' and path=='rotation':checks['headLocalRotationRange']=max(max(r[k] for r in v)-min(r[k] for r in v) for k in range(4))
+ assert all(x<1e-5 for x in checks.values()),checks
+ report['pivots'][name]=checks
 (root/'assets-src/actor-validation.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

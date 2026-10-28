@@ -1,20 +1,22 @@
 import * as THREE from 'three';
 import {buildCourtyardDetails} from './courtyard-detail';
+import {STAGE_COLORS as C,createStageMaterial,type StageSurfaceRole} from './stage-materials';
 import {createInkPipeline} from './ink-outline';
 import {courtyardMotion} from './environment-motion';
+import {addBotanical,type BotanicalInstance} from './botanical-assets';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { ANIMATIONS, BOW, HOME, EXIT, PLANT, type Actor, type Frame, type Visual, type Vec } from './engine';
 
-const C={cream:0xfff0c9,paper:0xf5e8c9,sand:0xedbc4a,tile:0xf6cf65,coral:0xd9654c,lightCoral:0xed8764,darkCoral:0xa84142,ink:0x30334c,blue:0x374f9f,mint:0x92baa1,green:0x457e6e,leaf:0x729a78};
+
 type Rig={root:THREE.Group,mixer:THREE.AnimationMixer,actions:Map<string,THREE.AnimationAction>,nodes:THREE.Object3D[]};
 export class StageScene {
   renderer:THREE.WebGLRenderer; scene=new THREE.Scene(); camera:THREE.OrthographicCamera;
   ink:ReturnType<typeof createInkPipeline>;outlineExclusions:THREE.Object3D[]=[];
-  foliage:{node:THREE.Group;phase:number}[]=[];leaves:{node:THREE.Mesh;base:THREE.Euler;phase:number}[]=[];doorHinge=new THREE.Group();lastShadowUpdate=-1;
+  plantHosts:{node:THREE.Group;seed:number}[]=[];botanicals:BotanicalInstance[]=[];doorHinge=new THREE.Group();signHinge=new THREE.Group();lastShadowUpdate=-1;
   stage=new THREE.Group(); actors=new THREE.Group(); body:Rig|null=null; shadow:Rig|null=null;
-  clips:THREE.AnimationClip[]=[]; materialCache=new Map<number,THREE.MeshToonMaterial>();
-  gradient:THREE.DataTexture; homeRing:THREE.Mesh; exitRing:THREE.Mesh; bowRing:THREE.Mesh;
+  clips:THREE.AnimationClip[]=[]; materialCache=new Map<string,THREE.MeshToonMaterial>();
+  homeRing:THREE.Mesh; exitRing:THREE.Mesh; bowRing:THREE.Mesh;
   door:THREE.Group; flags:THREE.Mesh[]=[]; overlay=new THREE.Group(); trace=new THREE.Group();
   inputArrow=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),1.4,C.cream,.35,.23);
   bodyTrail:THREE.Line;shadowTrail:THREE.Line;
@@ -28,7 +30,6 @@ export class StageScene {
     this.renderer.shadowMap.autoUpdate=false;this.renderer.shadowMap.needsUpdate=true;
     this.renderer.domElement.setAttribute('aria-label','正午庭院，固定镜头的三维互动舞台');this.host.append(this.renderer.domElement);
     this.camera=new THREE.OrthographicCamera(-13,13,8,-8,.1,100);this.camera.position.set(12,19,26);this.camera.lookAt(0,1,-.5);
-    const data=new Uint8Array([85,170,255]);this.gradient=new THREE.DataTexture(data,3,1,THREE.RedFormat);this.gradient.minFilter=THREE.NearestFilter;this.gradient.magFilter=THREE.NearestFilter;this.gradient.needsUpdate=true;
     const ambient=new THREE.AmbientLight(0xfff3dc,1.6);this.scene.add(ambient);
     const sun=new THREE.DirectionalLight(0xffedc4,2.5);sun.position.set(-10,16,-8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
     Object.assign(sun.shadow.camera,{left:-17,right:17,top:16,bottom:-15,near:.1,far:60});sun.shadow.bias=-.00025;sun.shadow.normalBias=.035;
@@ -51,30 +52,18 @@ export class StageScene {
     this.bodyTrail=trail(C.cream);this.shadowTrail=trail(C.blue);this.trace.add(this.bodyTrail,this.shadowTrail);this.trace.visible=false;
     const ro=new ResizeObserver(()=>this.resize());ro.observe(host);this.resize();
   }
-  material(color:number){
-    if(!this.materialCache.has(color)){
-      const material=new THREE.MeshToonMaterial({color,gradientMap:this.gradient,toneMapped:false});
-      const palette:Record<number,number>={[C.sand]:0xc38b47,[C.tile]:0xdba94d,[C.coral]:0xae4f4b,[C.lightCoral]:0xc66052,[C.darkCoral]:0x843f48,[C.cream]:0xd8bd8d,[C.mint]:0x638878,[C.green]:0x345f57,[C.leaf]:0x507a64};
-      const shade=new THREE.Color(palette[color]??color).multiplyScalar(palette[color]?1:.76);
-      material.onBeforeCompile=shader=>{
-        shader.uniforms.noonShade={value:shade};
-        shader.fragmentShader='uniform vec3 noonShade;\n'+shader.fragmentShader;
-        shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`float illumination = dot(outgoingLight, vec3(0.2126,0.7152,0.0722)) / max(dot(diffuseColor.rgb,vec3(0.2126,0.7152,0.0722)),0.001);
-          outgoingLight = mix(noonShade, diffuseColor.rgb, smoothstep(0.685-max(fwidth(illumination),.025),0.685+max(fwidth(illumination),.025),illumination));
-          #include <opaque_fragment>`);
-      };
-      material.customProgramCacheKey=()=>`noon-palette-aa-${color}`;this.materialCache.set(color,material);
-    }
-    return this.materialCache.get(color)!;
+  material(color:number,role:StageSurfaceRole='environment',side:THREE.Side=THREE.FrontSide){
+    const key=`${role}:${color}:${side}`;
+    if(!this.materialCache.has(key)){const material=createStageMaterial(color,role);material.side=side;this.materialCache.set(key,material);}
+    return this.materialCache.get(key)!;
   }
-  mesh(geometry:THREE.BufferGeometry,color:number,outline=false,parent:THREE.Object3D=this.stage){
+  mesh(geometry:THREE.BufferGeometry,color:number,_outline=false,parent:THREE.Object3D=this.stage){
     const m=new THREE.Mesh(geometry,this.material(color));m.castShadow=true;m.receiveShadow=true;parent.add(m);
-    if(outline){const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geometry,28),new THREE.LineBasicMaterial({color:C.ink,transparent:true,opacity:.6}));m.add(edges);}
     return m;
   }
   box(x:number,y:number,z:number,w:number,h:number,d:number,color:number,outline=true,parent:THREE.Object3D=this.stage){const m=this.mesh(new THREE.BoxGeometry(w,h,d),color,outline,parent);m.position.set(x,y,z);return m;}
   cylinder(x:number,y:number,z:number,top:number,bottom:number,h:number,color:number,segments=20,parent:THREE.Object3D=this.stage){const m=this.mesh(new THREE.CylinderGeometry(top,bottom,h,segments),color,false,parent);m.position.set(x,y,z);return m;}
-  line(points:number[][],color=C.ink,opacity=.6,parent:THREE.Object3D=this.stage){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points.map(p=>new THREE.Vector3(...p))),new THREE.LineBasicMaterial({color,transparent:true,opacity}));parent.add(line);return line;}
+  line(points:number[][],color:number=C.ink,opacity=.6,parent:THREE.Object3D=this.stage){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points.map(p=>new THREE.Vector3(...p))),new THREE.LineBasicMaterial({color,transparent:true,opacity}));parent.add(line);return line;}
   arch(x:number,z:number,width:number,height:number,depth:number,color:number,y=0,parent:THREE.Object3D=this.stage){
     const g=new THREE.Group();g.position.set(x,y,z);parent.add(g);
     const r=width/2,inner=height-r,thick=.28;
@@ -99,7 +88,7 @@ export class StageScene {
     // Dusky courtyard beyond the arches, not black voids.
     this.box(0,2.1,-7.35,21,4.2,.2,C.darkCoral,false);
     this.box(0,.02,-6.5,21,.12,2.3,C.lightCoral);
-    for(let x=-9.5;x<=10;x+=.6)this.line([[x,4.72,-5.0],[x+.08,4.84,-5.0]],C.ink,.5);
+    for(let x=-9.5;x<=10;x+=.6)this.line([[x,4.72,-5.0],[x+.08,4.84,-5.0]],C.darkCoral,.20);
     // Asymmetric tower and rooftop stair silhouette.
     this.box(-6.8,6.5,-7.8,4.2,3.8,3.1,C.coral);
     this.box(-6.8,8.45,-7.8,4.45,.2,3.3,C.lightCoral);
@@ -130,20 +119,20 @@ export class StageScene {
     // Banner, water spout and small architectural details.
     const pole=this.cylinder(-4,6.1,-6.2,.035,.035,3,C.ink,8);
     pole.castShadow=false;
-    const flag=this.mesh(new THREE.PlaneGeometry(1.05,1.7,5,7),C.mint,false);flag.position.set(-3.45,6.55,-6.18);(flag.material as THREE.Material).side=THREE.DoubleSide;this.flags.push(flag);
+    const flag=this.mesh(new THREE.PlaneGeometry(1.05,1.7,5,7),C.mint,false);flag.position.set(-3.45,6.55,-6.18);flag.material=this.material(C.mint,'environment',THREE.DoubleSide);this.flags.push(flag);
     for(const x of [-8.2,0,8.2])this.cylinder(x,4.15,-5.11,.12,.12,.15,C.cream,12).rotation.x=Math.PI/2;
   }
   buildFloor(){
     const floorTop=.006;
-    for(let x=-10;x<=10;x+=2)this.line([[x,floorTop,-5],[x,floorTop,7]],0xb4893f,.33);
-    for(let z=-5;z<=7;z+=1.5)this.line([[-10,floorTop,z],[10,floorTop,z]],0xb4893f,.33);
+    for(let x=-10;x<=10;x+=2)this.line([[x,floorTop,-5],[x,floorTop,7]],0xb4893f,.16);
+    for(let z=-5;z<=7;z+=1.5)this.line([[-10,floorTop,z],[10,floorTop,z]],0xb4893f,.16);
     for(const z of [-4.8,5.7]){
       this.box(0,.012,z,18,.025,.12,C.cream,false);
       for(let x=-8.7;x<9;x+=.36){const tile=this.box(x,.035,z,.15,.025,.15,C.darkCoral,false);tile.rotation.y=Math.PI/4;}
     }
     for(let i=0;i<16;i++){
       const x=-8.7+(i*5.37)%17.4,z=-4.2+(i*3.27)%9.5;
-      this.line([[x,.014,z],[x+.12,.014,z+.02],[x+.2,.014,z-.04]],0xa67a36,.25);
+      this.line([[x,.014,z],[x+.12,.014,z+.02],[x+.2,.014,z-.04]],0xa67a36,.18);
     }
   }
   buildDoor(){
@@ -153,13 +142,14 @@ export class StageScene {
     this.doorHinge.position.set(-.85,0,.03);g.add(this.doorHinge);
     const panel=new THREE.Group();panel.position.x=.85;this.doorHinge.add(panel);
     const leaf=this.mesh(new THREE.ExtrudeGeometry(shape,{depth:.06,bevelEnabled:false,curveSegments:20}),C.green,false,panel);leaf.position.z=-.03;
-    for(let x=-.6;x<=.7;x+=.3)this.line([[x,.1,.045],[x,2.3,.045]],C.ink,.4,panel);
+    for(let x=-.6;x<=.7;x+=.3)this.line([[x,.1,.045],[x,2.3,.045]],C.ink,.22,panel);
     this.box(0,1,.08,.05,2,.07,C.ink,false,panel);this.cylinder(.2,1.2,.15,.065,.065,.09,C.cream,12,panel).rotation.x=Math.PI/2;
     this.box(0,.04,.6,2.3,.08,1,C.lightCoral,true,g);
     // A hand-built sign: simple arrow, no font in the 3D world.
-    this.box(1.75,2.5,.1,.85,.65,.12,C.cream,true,g);
-    this.line([[1.48,2.5,.18],[2,2.5,.18],[1.82,2.66,.18]],C.ink,1,g);
-    this.line([[2,2.5,.18],[1.82,2.34,.18]],C.ink,1,g);
+    this.signHinge.position.set(1.75,2.5,.1);g.add(this.signHinge);
+    this.box(0,0,0,.85,.65,.12,C.cream,false,this.signHinge);
+    this.line([[-.27,0,.08],[.25,0,.08],[.07,.16,.08]],C.ink,1,this.signHinge);
+    this.line([[.25,0,.08],[.07,-.16,.08]],C.ink,1,this.signHinge);
     return g;
   }
   buildPlanter(x:number,z:number,scale:number){
@@ -167,15 +157,9 @@ export class StageScene {
     const profile=[new THREE.Vector2(.48,0),new THREE.Vector2(.6,.1),new THREE.Vector2(.67,.55),new THREE.Vector2(.82,.8),new THREE.Vector2(.84,.92),new THREE.Vector2(.76,.96),new THREE.Vector2(.72,.84)];
     this.mesh(new THREE.LatheGeometry(profile,20),C.coral,false,g);
     this.cylinder(0,.85,0,.72,.72,.05,C.darkCoral,20,g);
-    const foliage=new THREE.Group();foliage.position.y=.87;g.add(foliage);this.foliage.push({node:foliage,phase:x*.7+z});
-    for(let i=0;i<11;i++){
-      const a=i*2.399,r=.25+(i%3)*.12,h=1.1+(i%4)*.3;
-      const pts=[new THREE.Vector3(0,.87,0),new THREE.Vector3(Math.sin(a)*r,1.3,Math.cos(a)*r),new THREE.Vector3(Math.sin(a)*r*1.6,h+.8,Math.cos(a)*r*1.6)];
-      pts.forEach(p=>p.y-=.87);const curve=new THREE.CatmullRomCurve3(pts);this.mesh(new THREE.TubeGeometry(curve,8,.025,5,false),C.green,false,foliage);
-      const shape=new THREE.Shape();shape.moveTo(0,0);shape.quadraticCurveTo(.4,.35,0,.9);shape.quadraticCurveTo(-.25,.35,0,0);
-      const leaf=this.mesh(new THREE.ShapeGeometry(shape),i%2?C.green:C.leaf,false,foliage);leaf.position.copy(pts[1]);leaf.rotation.set(-.25,a,-.5);(leaf.material as THREE.Material).side=THREE.DoubleSide;this.leaves.push({node:leaf,base:leaf.rotation.clone(),phase:a+x});
-    }
+    const soil=new THREE.Group();soil.position.y=.87;g.add(soil);this.plantHosts.push({node:soil,seed:x*.7+z});
   }
+
   buildBench(x:number,z:number){
     const g=new THREE.Group();g.position.set(x,0,z);this.stage.add(g);
     this.box(0,.62,0,2.3,.17,.75,C.cream,true,g);this.box(-.8,.3,0,.25,.6,.55,C.coral,true,g);this.box(.8,.3,0,.25,.6,.55,C.coral,true,g);
@@ -195,7 +179,7 @@ export class StageScene {
   }
   ring(x:number,z:number,r:number,color:number){const m=new THREE.Mesh(new THREE.RingGeometry(r-.025,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.025,z);this.stage.add(m);return m;}
   async load(){
-    const [gltf,manifest]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb?v=4`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json?v=4`).then(r=>r.json())]);this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
+    const [gltf,manifest,botanicals]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb?v=5`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json?v=5`).then(r=>r.json()),Promise.all(this.plantHosts.map(({node,seed})=>addBotanical(node,{height:1.8,seed,materialFor:color=>this.material(color,'environment',THREE.DoubleSide)})))]);this.botanicals=botanicals;this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
     const bounds=new THREE.Box3().setFromObject(gltf.scene);this.actorScale=2.07/(bounds.max.y-bounds.min.y);
     this.stride=(manifest.clips.walk.strideLength||1)*this.actorScale;this.runStride=(manifest.clips.chase.strideLength||2.48)*this.actorScale;
     this.body=this.createRig(gltf.scene,false);this.shadow=this.createRig(gltf.scene,true);this.outlineExclusions.push(this.shadow.root);this.ink.outline.selectedObjects=[this.body.root];this.ready=true;
@@ -216,7 +200,7 @@ export class StageScene {
         };
         flat.customProgramCacheKey=()=> 'ground-projection-v1';return flat;
       }
-      return this.material(color);
+      return this.material(color,'actor',original.side);
     };
     root.traverse(node=>{
       if(node.name==='ink-outline')return;
@@ -242,7 +226,7 @@ export class StageScene {
         const action=rig.actions.get(name)||rig.actions.get(name==='struggle'?'look':'idle');
         if(!action||a.weights[name]<1e-6)continue;
         const duration=action.getClip().duration;
-        const time=name==='walk'||name==='chase'?(a.gaitPhase+(this.phaseOffsets[name]||0))*duration:a.clocks[name];
+        const time=name==='walk'||name==='chase'?(a.gaitPhase+(this.phaseOffsets[name]||0))*duration:name.startsWith('pivot_')?a.pivotPhase*duration:a.clocks[name];
         action.enabled=true;action.weight+=a.weights[name];
         action.time=['bow','shrug','turn','sit','rise','look','surprise','reach'].includes(name)?Math.min(time,duration-1e-5):time%duration;
       }
@@ -282,13 +266,15 @@ export class StageScene {
         this.shadow.root.updateMatrixWorld(true);
       }
     }
-    this.homeRing.visible=frame.stage==='arrival'||frame.stage==='return';
-    this.homeRing.material=(this.homeRing.material as THREE.MeshBasicMaterial);(this.homeRing.material as THREE.MeshBasicMaterial).opacity=frame.goal?1:.55;(this.homeRing.material as THREE.MeshBasicMaterial).transparent=true;
-    this.exitRing.visible=frame.stage==='arrival'&&!frame.goal||frame.stage==='follow'||frame.stage==='rejoin';
-    this.bowRing.visible=frame.mode==='teacher'&&frame.stage==='follow'&&frame.elapsed>22;
-    const motion=courtyardMotion(frame.t);this.doorHinge.rotation.y=motion.doorAngle;
-    for(const {node,phase} of this.foliage){node.rotation.z=motion.wind+Math.sin(frame.t*.9+phase)*.014;node.rotation.x=Math.sin(frame.t*.65+phase)*.018;}
-    for(const {node,base,phase} of this.leaves){node.rotation.x=base.x+Math.sin(frame.t*1.5+phase)*.035;node.rotation.z=base.z+Math.sin(frame.t*1.1+phase)*.028;}
+    const at=(p:Vec)=>!!frame.cue&&Math.hypot(frame.cue.x-p.x,frame.cue.z-p.z)<.01;
+    this.homeRing.visible=at(HOME)||frame.stage==='return';
+    this.exitRing.visible=at(EXIT);
+    this.bowRing.visible=!!frame.cue&&!at(HOME)&&!at(EXIT);
+    if(frame.cue)this.bowRing.position.set(frame.cue.x,.025,frame.cue.z);
+    const motion=courtyardMotion(frame.t);
+    this.doorHinge.rotation.y=-1.4*frame.doorOpen+motion.doorAngle*(1-frame.doorOpen);
+    this.signHinge.rotation.y=Math.PI*frame.signTurn;
+    for(const botanical of this.botanicals)botanical.update(frame.t,motion.wind);
     // Moving foliage and the hinged door keep their real cast shadows in step.
     if(Math.abs(frame.t-this.lastShadowUpdate)>.08){this.renderer.shadowMap.needsUpdate=true;this.lastShadowUpdate=frame.t;}
     for(const flag of this.flags){const p=flag.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i);p.setZ(i,Math.sin(frame.t*1.4+x*3+p.getY(i))*.035*(x+.55));}p.needsUpdate=true;}
@@ -310,7 +296,7 @@ export class StageScene {
     const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0));
     return {x:right.x*x-forward.x*y,z:right.z*x-forward.z*y};
   }
-  resize(){const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.ink.composer.setPixelRatio(this.renderer.getPixelRatio());this.ink.composer.setSize(w,h);this.ink.outline.edgeThickness=.8*this.renderer.getPixelRatio();
+  resize(){const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.ink.composer.setPixelRatio(this.renderer.getPixelRatio());this.ink.composer.setSize(w,h);this.ink.outline.edgeThickness=.6*this.renderer.getPixelRatio();
     const aspect=w/h;this.camera.updateMatrixWorld(true);
     const points=this.framingPoints.map(p=>p.clone().applyMatrix4(this.camera.matrixWorldInverse));
     const xs=points.map(p=>p.x),ys=points.map(p=>p.y);

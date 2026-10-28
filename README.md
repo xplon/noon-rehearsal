@@ -27,16 +27,17 @@ npm run dev
 
 ## 实现与资产
 
-- Three.js + TypeScript + Vite；固定正交镜头，定制色阶、结构线、整个人物的屏幕空间描边、原角色网格投影。
-- KayKit Hooded Rogue（Kay Lousberg，CC0）改编角色：约 4.5 头身，保留原动作节奏并重新匹配较长的四肢；42 根骨骼、12 段动作、约 0.63 MB GLB。保留来源、许可、可编辑 `.blend`、改编脚本与检查图。
+- Three.js + TypeScript + Vite；固定正交镜头，分层绘制色阶、独立真实投影、克制的结构线与原角色网格投影；人物外轮廓默认关闭。
+- KayKit Hooded Rogue（Kay Lousberg，CC0）改编角色：约 4.5 头身，保留原动作节奏并重新匹配较长的四肢；42 根骨骼、14 段动作、约 0.68 MB GLB。保留来源、许可、可编辑 `.blend`、改编脚本与检查图。
 - 庭院为可编辑的程序化三维场景；背景、模型与声音均无运行时外部素材请求。上方字幕与舞台分区，镜头按建筑实际边界完整取景。
+- 植物改编自 Kenney Nature Kit 的现成 CC0 莲座植株，保留作者叶序和立体叶片，约 11 KB；原花盆保留，根部固定、叶梢轻动。详见 [植物来源](docs/PLANT_ASSETS.md)。
 - Noto Serif SC / Noto Sans SC 本地字体子集，许可证随字体分发。
 - 60 Hz 逻辑、30 Hz 状态与最终关节变换采样；回看的位置与旋转插值。
-- 连续速度、受限加速度与转向、按实际位移推进步态、圆圈轻吸附；跟随结束先会合，再恢复正常投影。
+- 先视线定位、刹停、换脚转身后起步；连续速度、受限加速度与转向、按实际位移推进步态、圆圈轻吸附；跟随结束先会合，再恢复正常投影。
 - 影子有察觉、试着跟上又收住的反应；身体先观察再追随，急转方向会回头确认。门、叶片与旗帜按游戏时间轻动；声音开启时门会偶尔轻响。
 - 所有关键阶段都有非配合/无操作的继续路径；系统代演、归位和主持人跳过有来源记录。
 
-文档：[技术路线](docs/TECHNICAL_DIRECTION.md)、[角色资产](docs/CHARACTER_ASSETS.md)、[庭院结构](docs/COURTYARD.md)、[课堂使用](docs/CLASSROOM.md)、[验证记录](docs/VALIDATION.md)。
+文档：[完整流程与时长](docs/FLOW_V05.md)、[技术路线](docs/TECHNICAL_DIRECTION.md)、[角色资产](docs/CHARACTER_ASSETS.md)、[庭院结构](docs/COURTYARD.md)、[课堂使用](docs/CLASSROOM.md)、[验证记录](docs/VALIDATION.md)。
 
 ## 验证与发布
 

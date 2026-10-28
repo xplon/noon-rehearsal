@@ -1,5 +1,5 @@
 """Compare an older GLB with the current asset, ignoring newly added actions.
-Usage: python3 assets-src/compare_actor_preservation.py /path/to/previous.glb
+Usage: python3 assets-src/compare_actor_preservation.py /path/to/previous.glb [relative-report.json]
 """
 import json,struct,sys,hashlib
 from pathlib import Path
@@ -41,5 +41,5 @@ for name,channels in a.items():
 assert report['meshMaxDifference']==0 and report['skinMaxDifference']==0
 assert all(v['maxChannelDifference']==0 for v in report['oldClips'].values())
 report['addedClips']=sorted(set(b)-set(a));report['preservedExactly']=True
-(root/'assets-src/actor-v4-preservation.json').write_text(json.dumps(report,indent=2)+'\n')
+(root/(sys.argv[2] if len(sys.argv)>2 else 'assets-src/actor-v4-preservation.json')).write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

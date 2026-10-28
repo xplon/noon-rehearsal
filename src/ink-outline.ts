@@ -4,12 +4,15 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {OutlinePass} from 'three/addons/postprocessing/OutlinePass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 
-/** One occlusion-aware silhouette for the whole actor, independent of material seams. */
+/** Optional faint actor silhouette. Painted surface lighting is the default. */
 export function createInkPipeline(renderer:THREE.WebGLRenderer,scene:THREE.Scene,camera:THREE.Camera,exclude:THREE.Object3D[],ink:number){
   const target=new THREE.WebGLRenderTarget(1,1,{samples:4});
   const composer=new EffectComposer(renderer,target);composer.addPass(new RenderPass(scene,camera));
   const outline=new OutlinePass(new THREE.Vector2(1,1),scene,camera);
-  outline.downSampleRatio=1;outline.edgeStrength=2.6;outline.edgeThickness=.8*renderer.getPixelRatio();outline.edgeGlow=0;outline.pulsePeriod=0;
+  // Keep the compatible pass available for art-direction comparisons, but avoid
+  // framing a small ivory figure with a dark sticker-like contour by default.
+  outline.enabled=false;
+  outline.downSampleRatio=1;outline.edgeStrength=.8;outline.edgeThickness=.6*renderer.getPixelRatio();outline.edgeGlow=0;outline.pulsePeriod=0;
   outline.visibleEdgeColor.setRGB(1,1,1);outline.hiddenEdgeColor.setRGB(0,0,0);
   outline.overlayMaterial.blending=THREE.NormalBlending;
   outline.overlayMaterial.uniforms.inkColor={value:new THREE.Color(ink)};
@@ -18,7 +21,7 @@ export function createInkPipeline(renderer:THREE.WebGLRenderer,scene:THREE.Scene
     void main(){
       vec4 mask=texture2D(maskTexture,vUv);
       float edge=texture2D(edgeTexture1,vUv).r;
-      float alpha=clamp(edgeStrength*mask.r*edge,0.0,.82);
+      float alpha=clamp(edgeStrength*mask.r*edge,0.0,.22);
       gl_FragColor=vec4(inkColor,alpha);
     }`;
   // Ground-projected shadow meshes are shader projections, not solid 3D occluders.

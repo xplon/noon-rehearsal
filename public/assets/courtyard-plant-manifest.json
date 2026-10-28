@@ -1,0 +1,32 @@
+{
+  "name": "Courtyard leaf rosette",
+  "sourceModel": "Kenney Nature Kit / plant_bushDetailed",
+  "license": "CC0-1.0",
+  "sourcePage": "https://kenney.nl/assets/nature-kit",
+  "up": "+Y",
+  "root": [
+    0,
+    0,
+    0
+  ],
+  "height": 1,
+  "width": 1.069968,
+  "depth": 1.069968,
+  "triangles": 104,
+  "vertices": 232,
+  "bytes": 11152,
+  "palette": {
+    "LeafGreen": "648C6B",
+    "LeafLight": "83A385",
+    "LeafDeep": "416956"
+  },
+  "containsPot": false,
+  "textures": false,
+  "modifications": [
+    "Uniform height normalization to 1.0, horizontal width/depth scaled to 64% to fit courtyard planter",
+    "Three flat green material colors assigned by authored leaf face orientation",
+    "Original leaf topology and arrangement preserved; no generated replacement leaves"
+  ],
+  "wind": "Runtime CPU deformation, lower 8% of normalized height pinned; actual geometry and cast shadows deform together",
+  "sha256": "785b4682ce725b6f6d844d3769b5e930e8d69196cbd04daa748ef5d8ec7442dc"
+}

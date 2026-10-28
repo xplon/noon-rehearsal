@@ -1,0 +1,62 @@
+{
+  "baseline": "/tmp/noon-rehearsal-tools/actor-v4.glb",
+  "baselineSha256": "d16859fa61f8d3277a74ba43db14900209493ccabbdf5bedb3cf0745677a4676",
+  "currentSha256": "687b0d0ec57f9c89b25f343877e8178e399f8266ff94e12da4f5b98701408360",
+  "meshMaxDifference": 0,
+  "skinMaxDifference": 0,
+  "oldClips": {
+    "bow": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "chase": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "idle": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "look": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "reach": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "rise": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "shrug": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "sit": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "struggle": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "surprise": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "turn": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    },
+    "walk": {
+      "maxChannelDifference": 0,
+      "channels": 126
+    }
+  },
+  "addedClips": [
+    "pivot_left",
+    "pivot_right"
+  ],
+  "preservedExactly": true
+}

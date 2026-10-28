@@ -1,5 +1,5 @@
 {
-  "bytes": 629868,
+  "bytes": 677348,
   "skins": 1,
   "joints": 42,
   "embeddedOnly": true,
@@ -31,6 +31,20 @@
       "angularVelocitySeamRadPerSec": 8.778080877198132e-07,
       "linearVelocitySeam": 0,
       "loop": false
+    },
+    "pivot_left": {
+      "duration": 0.933333,
+      "endpointComponentGap": 0.0,
+      "angularVelocitySeamRadPerSec": 0.0,
+      "linearVelocitySeam": 0.0,
+      "loop": true
+    },
+    "pivot_right": {
+      "duration": 0.933333,
+      "endpointComponentGap": 0.0,
+      "angularVelocitySeamRadPerSec": 0.0,
+      "linearVelocitySeam": 0.0,
+      "loop": true
     },
     "reach": {
       "duration": 1.5,
@@ -117,6 +131,34 @@
     "reach->idle": {
       "maxComponentGap": 0.0,
       "maxBodyGap": 0.0
+    },
+    "idle->pivot_left": {
+      "maxComponentGap": 3.650784492492676e-07,
+      "maxBodyGap": 3.650784492492676e-07
+    },
+    "pivot_left->idle": {
+      "maxComponentGap": 3.650784492492676e-07,
+      "maxBodyGap": 3.650784492492676e-07
+    },
+    "idle->pivot_right": {
+      "maxComponentGap": 3.650784492492676e-07,
+      "maxBodyGap": 3.650784492492676e-07
+    },
+    "pivot_right->idle": {
+      "maxComponentGap": 3.650784492492676e-07,
+      "maxBodyGap": 3.650784492492676e-07
+    }
+  },
+  "pivots": {
+    "pivot_left": {
+      "rootHorizontalRange": 0.0,
+      "hipsHorizontalRange": 1.1354899243087857e-09,
+      "headLocalRotationRange": 0.0
+    },
+    "pivot_right": {
+      "rootHorizontalRange": 0.0,
+      "hipsHorizontalRange": 1.1354899243087857e-09,
+      "headLocalRotationRange": 0.0
     }
   }
 }

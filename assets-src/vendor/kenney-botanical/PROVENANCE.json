@@ -1,0 +1,25 @@
+{
+  "creator": "Kenney",
+  "pack": "Nature Kit",
+  "model": "plant_bushDetailed",
+  "license": "CC0-1.0",
+  "sourcePage": "https://kenney.nl/assets/nature-kit",
+  "sourceArchive": "https://kenney.nl/media/pages/assets/nature-kit/37ac38a37b-1677698939/kenney_nature-kit.zip",
+  "archiveSha256": "fa7974a0d342bfe63c38664ba9f8ec1a4aab8ea25f099bdc56870e33588c4d9d",
+  "sourceModelPath": "Models/GLTF format/plant_bushDetailed.glb",
+  "modelSha256": "2e0487020d68ccf664435db9d829c78ae00e6d2785ee3ec10b9f89cc70a10406",
+  "licenseSha256": "cb96b75e3560ac78d7a53ce6f083f4cdb5c53faea6141b62d63458dcfe1e4b9d",
+  "retrieved": "2026-10-28",
+  "comparison": [
+    {
+      "creator": "Kenney",
+      "source": "https://kenney.nl/assets/furniture-kit",
+      "finding": "Potted plants are very sparse pointed-leaf forms; Nature Kit plant_bushDetailed has a denser leaf rosette and is chosen."
+    },
+    {
+      "creator": "Quaternius",
+      "source": "https://quaternius.com/packs/ultimatenature.html",
+      "finding": "Official pack page lists CC0 and a public Google Drive source folder; direct source-file downloads returned Quota exceeded, so no Quaternius file is shipped."
+    }
+  ]
+}

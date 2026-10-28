@@ -1,0 +1,18 @@
+{
+  "assetSha256": "785b4682ce725b6f6d844d3769b5e930e8d69196cbd04daa748ef5d8ec7442dc",
+  "frames": 241,
+  "seconds": 12,
+  "meshCount": 3,
+  "pinnedVertices": 56,
+  "maxPinnedDisplacement": 0,
+  "maxTipDisplacementNative": 0.038296434003907434,
+  "maxTipDisplacementAtHeight1_8": 0.06893358120703338,
+  "maxDisplacementNative": 0.038296434003907434,
+  "finitePositionsAndNormals": true,
+  "absoluteTimeDeterministic": true,
+  "rootTransformUnchanged": true,
+  "borrowedShaderHookPreserved": true,
+  "borrowedMaterialDisposals": 0,
+  "ownedMaterialDisposals": 3,
+  "geometryDisposals": 3
+}
