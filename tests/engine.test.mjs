@@ -62,7 +62,7 @@ test('ring gently settles the actor but intentional movement can leave',()=>{
  assert(dist(g.body,HOME)>1.5);
 });
 test('arrival completes promptly after its actual route and a brief home dwell',()=>{
- const g=new Game();g.goal=true;g.distance=3;g.arrivalBeat='home';g.elapsed=g.config.arrivalMin;g.cue={...HOME};run(g,1);assert.notEqual(g.stage,'arrival');assert(g.time<2);
+ const g=new Game();g.goal=true;g.distance=3;g.arrivalBeat='home';g.elapsed=0;g.cue={...HOME};run(g,1);assert.notEqual(g.stage,'arrival');assert(g.time<2);
 });
 test('curtain unites both roots before using precisely the same bow pose',()=>{
  const g=new Game();g.body.x=1;g.shadow.x=-2;g.finish('host-ended');
@@ -153,17 +153,53 @@ function cooperate(g){
  if(!cue||!['arrival','echo','follow','rejoin'].includes(g.stage))return {x:0,z:0};
  const d=dist(a,cue);return d>.2?{x:(cue.x-a.x)/d,z:(cue.z-a.z)/d}:{x:0,z:0};
 }
-test('quick cooperation still plays every interaction and produces a two / three minute piece',()=>{
+test('cooperative choices advance distinct events without minimum duration padding',()=>{
  for(const mode of ['student','teacher']){
-  const g=new Game(mode);until(g,'ended',220,cooperate);
-  assert(g.time>=(mode==='student'?118:175)&&g.time<(mode==='student'?145:210));
+  const g=new Game(mode);until(g,'ended',200,(g,i)=>{
+   if(g.stage==='follow'&&['parting','search'].includes(g.stageBeat())&&g.beatResolvedAt<0)g.interact();
+   if(g.stage==='follow'&&g.stageBeat()==='encore'&&g.beatTravel>3)g.interact();
+   return cooperate(g);
+  });
   assert.equal(g.ending,'exit');assert(!g.systemDemo);assert.equal(g.events.filter(e=>e.type==='host-skip').length,0);
-  assert(g.events.some(e=>e.type==='target-entered'&&e.target==='courtyard-side'));
-  for(const beat of ['meet','cross','around'])assert(g.events.some(e=>e.type==='beat'&&e.beat===beat));
-  assert(g.body.z< -5.4&&g.shadow.z< -5.4);assert(g.doorOpen>.99);
-  if(mode==='teacher'){assert(g.events.some(e=>e.type==='body-rest'));assert(g.events.some(e=>e.type==='bow'));assert(g.events.some(e=>e.type==='reverse-start'));}
+  assert(!g.events.some(e=>e.type==='target-entered'&&['plant-side','courtyard-side'].includes(e.target)));
+  for(const beat of ['meet','parting','search','bow'])assert(g.events.some(e=>e.type==='beat'&&e.beat===beat));
+  assert(g.events.some(e=>e.type==='beat-outcome'&&e.outcome==='called-partner'));
+  assert(g.events.some(e=>e.type==='beat-outcome'&&e.outcome==='found-partner'));
+  assert(g.events.some(e=>e.type==='bow'));assert(g.body.z< -5.4&&g.shadow.z< -5.4);
+  if(mode==='teacher'){assert(g.events.some(e=>e.type==='body-rest'));assert(g.events.some(e=>e.type==='reverse-start'));}
   else assert(!g.events.some(e=>e.type==='reverse-start'));
  }
+});
+
+test('a completed opening returns immediately instead of waiting for a minimum runtime',()=>{
+ const g=new Game();g.arrivalBeat='home';g.cue={...HOME};g.distance=4;g.goal=true;run(g,.5);
+ assert.notEqual(g.stage,'arrival');assert(g.time<1);assert(Number.isFinite(g.elapsed));
+});
+
+test('the door visibly responds, and meeting both actors leads to a choice after its response',()=>{
+ const g=new Game();g.body={...g.body,...EXIT};g.shadow={...g.shadow,...EXIT};g.transition('follow');
+ run(g,1);assert(g.events.some(e=>e.outcome==='door-count'));
+ run(g,2);assert.equal(g.stageBeat(),'parting');assert(g.beatTime<1);
+ g.interact();run(g,2);assert.equal(g.stageBeat(),'search');assert(g.events.some(e=>e.outcome==='called-partner'));
+});
+
+test('a moving shadow may go ahead while the body visibly declines being left behind',()=>{
+ const g=new Game();g.transition('follow');g.enterFollowBeat(1);g.beatPhase='choice';g.body.x=3;g.body.z=-1;g.shadow={...g.shadow,...EXIT};
+ run(g,.1,()=>({x:1,z:0}));assert(g.events.some(e=>e.outcome==='went-ahead'));assert.equal(g.bodyActing,'reach');
+});
+
+test('rest can be interrupted by an explicit call and does not retain a hidden wait',()=>{
+ const g=new Game('teacher');g.transition('follow');g.enterFollowBeat(3);g.shadow.x+=2;run(g,1);
+ assert.equal(g.stageBeat(),'rest');g.interact();run(g,2.1);assert.equal(g.stageBeat(),'bow');assert(g.events.some(e=>e.outcome==='woken'));
+});
+
+test('a stationary reverse has no artificial twelve second playback',()=>{
+ const g=new Game('teacher');g.transition('reverse');g.reverseRoute=[g.routePoint(g.shadow,0),g.routePoint(g.shadow,1)];
+ until(g,'rejoin',3);assert.equal(g.reverseDuration,0);assert(g.events.some(e=>e.reason==='reverse-still'));
+});
+
+test('the restored player can explicitly stay or exit without a timed gate',()=>{
+ for(const leave of [false,true]){const g=new Game();g.transition('rejoin');if(leave){Object.assign(g.body,EXIT);Object.assign(g.shadow,EXIT);}g.interact();g.step();assert.equal(g.stage,'curtain');assert.equal(g.ending,leave?'exit':'stillness');}
 });
 
 test('handoff into the old route turns once per tick and stays planted until aligned',()=>{
@@ -175,4 +211,15 @@ test('handoff into the old route turns once per tick and stays planted until ali
   prior={...g.body};
  }
  assert(g.echoReady);assert(Math.abs(g.body.yaw-g.route[0].yaw)<.07);
+});
+
+test('declining the personal bow really grants an encore instead of ending the scene',()=>{
+ const g=new Game();g.transition('follow');g.enterFollowBeat(3);g.interact();run(g,2);
+ assert.equal(g.stageBeat(),'encore');assert.equal(g.target,'shadow');assert.equal(g.actionLabel(),'就演到这里');
+ g.interact();until(g,'rejoin',25);assert(!g.events.some(e=>e.type==='reverse-start'));
+});
+
+test('the call button disappears once the partner is already following that call',()=>{
+ const g=new Game();g.transition('follow');g.enterFollowBeat(2);g.shadow.x+=3;g.interact();g.step();
+ assert.equal(g.beatPhase,'found');assert.equal(g.actionLabel(),'');
 });

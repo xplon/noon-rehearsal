@@ -15,9 +15,9 @@ npm run dev
 
 打开终端显示的本地地址。生产构建：`npm run build`；本地预览构建：`npm run preview`。
 
-- 电脑：方向键 / WASD。
+- 电脑：方向键 / WASD；情境动作出现时按空格，或直接点按钮。
 - 手机：横屏游玩，右侧拖动方向盘；竖屏显示转屏提示，演出中转回竖屏会自动暂停。静音也可完整游玩。
-- 个人体验约 2 分钟，剧场演出约 3 分钟；实际时长随路线和操作变化。
+- 个人版是一段短剧；剧场版增加休息、即兴倒放与回看。时长由实际路线、选择和角色回应决定，不设凑时长的最低门槛；熟悉操作后可以较快结束。
 - 两版都有暂停与提前落幕；教师版另有跳段控制。失焦会暂停，返回后点继续。
 - 个人版完整落幕、揭题后结束，不设回看；教师版结束后可回看本局片段与动作来源。
 
@@ -37,7 +37,7 @@ npm run dev
 - 影子有察觉、试着跟上又收住的反应；身体先观察再追随，急转方向会回头确认。门、叶片与旗帜按游戏时间轻动；声音开启时门会偶尔轻响。
 - 所有关键阶段都有非配合/无操作的继续路径；系统代演、归位和主持人跳过有来源记录。
 
-文档：[完整流程与时长](docs/FLOW_V05.md)、[技术路线](docs/TECHNICAL_DIRECTION.md)、[角色资产](docs/CHARACTER_ASSETS.md)、[庭院结构](docs/COURTYARD.md)、[课堂使用](docs/CLASSROOM.md)、[验证记录](docs/VALIDATION.md)。
+文档：[完整流程与时长](docs/FLOW_V06.md)、[技术路线](docs/TECHNICAL_DIRECTION.md)、[角色资产](docs/CHARACTER_ASSETS.md)、[庭院结构](docs/COURTYARD.md)、[课堂使用](docs/CLASSROOM.md)、[验证记录](docs/VALIDATION.md)。
 
 ## 验证与发布
 

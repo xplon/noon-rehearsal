@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {SUN} from './lighting';
 
 /** Scene swatches stay separate from the painted lighting ramp below. */
 export const STAGE_COLORS={
@@ -109,7 +110,7 @@ export function createStageMaterial(color:number,role:StageSurfaceRole='environm
       stageMiddle:{value:new THREE.Color(ramp.middle)},
       stageLight:{value:new THREE.Color(ramp.light)},
       stageOccluded:{value:new THREE.Color(ramp.occluded)},
-      stageSunDirection:{value:new THREE.Vector3(-10,16,-8).normalize()},
+      stageSunDirection:{value:new THREE.Vector3(SUN.x,SUN.y,SUN.z).normalize()},
       stageBandSoftness:{value:role==='actor'?.17:.075},
       stageCastShadeStrength:{value:role==='actor'?.58:.76},
       stageContactStrength:{value:role==='actor'?0:.22},

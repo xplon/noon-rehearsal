@@ -19,7 +19,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
       <p class="eyebrow"><span class="sun-mark">✳</span> 互动短剧 / 第一号庭院</p>
       <h1>请入场<span class="punctuation">。</span></h1>
       <p class="invitation">门已经在那里。<br>接下来，请你走一小段路。</p>
-      <fieldset class="mode-switch"><legend class="sr-only">选择演出版本</legend><label><input type="radio" name="mode" value="student" checked><span>个人体验 <small>约 2 分钟</small></span></label><label><input type="radio" name="mode" value="teacher"><span>剧场演出 <small>约 3 分钟</small></span></label></fieldset>
+      <fieldset class="mode-switch"><legend class="sr-only">选择演出版本</legend><label><input type="radio" name="mode" value="student" checked><span>个人体验 <small>约 1–2 分钟</small></span></label><label><input type="radio" name="mode" value="teacher"><span>剧场演出 <small>即兴与回看</small></span></label></fieldset>
       <button id="start-button" class="primary" disabled><span>正在布置舞台</span><span aria-hidden="true">→</span></button>
       <p class="small-note">方向键 / WASD 移动 · 手机使用方向盘<br>静音也能完整体验 · 剧场版结束后可回看</p>
     </section>
@@ -27,7 +27,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
     <div id="loading" class="loading"><span class="loader-arch"></span><span>演员正在候场</span></div>
     <section id="hud" class="hud" hidden>
       <div class="stage-strip"><span class="eyebrow" id="mode-label">一场个人试演</span><span class="stage-dots" id="stage-dots" aria-label="演出进行中">● <i>·</i> · <i>·</i> ·</span><button id="pause-button" class="text-button">Ⅱ 暂停</button></div>
-      <div id="subtitle" class="subtitle" role="status" aria-live="polite"></div>
+      <div id="subtitle" class="subtitle" role="status" aria-live="polite"></div><button id="action-button" class="stage-action" hidden><span id="action-label"></span><small>空格 / 点击</small></button>
       <div class="control-bar"><div class="keys" aria-label="当前输入"><kbd data-key="up">↑</kbd><div><kbd data-key="left">←</kbd><kbd data-key="down">↓</kbd><kbd data-key="right">→</kbd></div></div><p>方向键 / WASD<span>随时可以停下来</span></p><button id="host-button" class="text-button">演出控制 <span>⌄</span></button></div>
       <div id="host-controls" class="host-controls" hidden><span>这些操作会写入本局记录</span><button id="skip-button">跳过这一段</button><button id="end-button">提前落幕</button></div>
     </section>
@@ -43,7 +43,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
   </main>
   <footer class="footer"><span>一个关于行动与观看的互动作品</span><span class="footer-center">EST. AT NOON <span>✳</span></span><button id="share-button" class="text-button">邀请另一个人入场 ↗</button></footer>
 </div>
-<dialog id="about-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">入场之前</p><h2>用一小段时间，<br>走进一处庭院。</h2><p>电脑使用方向键或 WASD；手机横屏，拖动右侧方向盘。游戏不计分，也不需要每一步都照着提示走。</p><p>个人体验约两分钟；剧场演出稍长，适合投影和旁观。个人体验在片名出现时结束；剧场演出包含休息、谢幕和倒走，结束后可回看自己的动作。</p><div class="notice"><strong>关于本局记录</strong><p>角色轨迹与操作保存在当前页面，用于本场演出与剧场版回看。不采集姓名、摄像头或麦克风，不上传游玩记录。分享或展示他人的体验前，请先征得同意。关闭或刷新页面会清除未导出的记录。</p></div><p class="asset-credit">角色改编自 <a href="https://kaylousberg.com/game-assets" target="_blank" rel="noopener">Kay Lousberg · KayKit</a>（CC0）；植物来自 <a href="https://kenney.nl/assets/nature-kit" target="_blank" rel="noopener">Kenney · Nature Kit</a>（CC0）。</p><button class="primary dialog-close-action"><span>知道了</span><span>→</span></button></dialog>
+<dialog id="about-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">入场之前</p><h2>用一小段时间，<br>走进一处庭院。</h2><p>电脑使用方向键或 WASD；手机横屏，拖动右侧方向盘。出现动作提示时，按空格或点按按钮回应搭档。游戏不计分，也不需要每一步都照着提示走。</p><p>个人体验约一至两分钟；剧场演出稍长，适合投影和旁观。个人体验在片名出现时结束；剧场演出包含休息、谢幕和倒走，结束后可回看自己的动作。</p><div class="notice"><strong>关于本局记录</strong><p>角色轨迹与操作保存在当前页面，用于本场演出与剧场版回看。不采集姓名、摄像头或麦克风，不上传游玩记录。分享或展示他人的体验前，请先征得同意。关闭或刷新页面会清除未导出的记录。</p></div><p class="asset-credit">角色改编自 <a href="https://kaylousberg.com/game-assets" target="_blank" rel="noopener">Kay Lousberg · KayKit</a>（CC0）；植物来自 <a href="https://kenney.nl/assets/nature-kit" target="_blank" rel="noopener">Kenney · Nature Kit</a>（CC0）。</p><button class="primary dialog-close-action"><span>知道了</span><span>→</span></button></dialog>
 <dialog id="share-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">一人，一场。</p><h2>在你的庭院里见。</h2><canvas id="qr"></canvas><p>扫码进入个人体验</p><button id="copy-button" class="primary"><span>复制入场链接</span><span>↗</span></button></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <section id="rotation-guide" class="rotation-guide" aria-label="手机横屏游玩" hidden><div class="rotate-device" aria-hidden="true"><span>↻</span></div><p class="eyebrow">把庭院展开</p><h2>横过来，再入场。</h2><p>请将手机转为横屏。<br>留出足够的空间，看清人物与庭院。</p><small>若已开始，演出会暂停等你。</small></section>`;
@@ -64,7 +64,7 @@ function screen(next:typeof view){
 function start(){
   if(!ready)return;mode=document.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value as Mode;
   game=new Game(mode,scene.stride,scene.runStride);previousTick=null;corrections=[];keys.clear();stick={x:0,y:0};accumulator=0;replayPlaying=false;evidence=false;
-  $('mode-label').textContent=mode==='teacher'?'一场剧场演出':'一场个人试演';$('host-button').hidden=mode==='student';scene.setEvidence(game.snapshot(),[],false);screen('play');sound.resetAmbience();
+  $('mode-label').textContent=mode==='teacher'?'一场剧场演出':'一场个人试演';$('host-button').hidden=mode==='student';scene.setEvidence(game.snapshot(),[],false);$('action-button').hidden=true;screen('play');sound.resetAmbience();
   document.title='庭院试演 · 正午排练场';scene.apply(game.snapshot());game.frames[0].visual=scene.capture();sound.chime();
 }
 function pause(reason='manual'){
@@ -122,6 +122,7 @@ function animate(now:number){
         if(game.frames.length>count){const frame=game.frames.at(-1)!;scene.apply(frame);frame.visual=scene.capture();}
       }
       const rendered=game.snapshot();if(previousTick){const alpha=accumulator*60;rendered.body=mixActor(previousTick.body,rendered.body,alpha);rendered.shadow=mixActor(previousTick.shadow,rendered.shadow,alpha);}scene.apply(rendered);$('subtitle').textContent=game.line;$('subtitle').classList.toggle('empty',!game.line);
+      const action=game.actionLabel();$('action-button').hidden=!action;$('action-label').textContent=action;
       sound.step(game.body.gaitPhase,game.body.animation==='walk'||game.body.animation==='chase');
       sound.ambience(game.time);
       if(game.stage==='ended')endReveal();
@@ -138,6 +139,7 @@ try{
   scene.load().then(()=>{ready=true;$('loading').hidden=true;$<HTMLButtonElement>('start-button').disabled=false;$('start-button').innerHTML='<span>入场</span><span aria-hidden="true">→</span>';}).catch(error=>{console.error(error);$('loading').innerHTML='<p>演员还没准备好。<br>请刷新页面，再试一次。</p>';});
 }catch(error){console.error(error);$('loading').innerHTML='<p>这个浏览器暂时无法开启三维舞台。<br>请使用支持 WebGL2 的浏览器重新进入。</p>';}
 requestAnimationFrame(animate);
+$('action-button').onclick=()=>game?.interact();
 $('start-button').onclick=start;$('again-button').onclick=start;$('review-button').onclick=review;
 $('pause-button').onclick=()=>pause();$('resume-button').onclick=resume;
 $('host-button').onclick=()=>{$('host-controls').hidden=!$('host-controls').hidden;};
@@ -168,6 +170,7 @@ $('share-button').onclick=async()=>{openDialog('share-dialog');const url=new URL
 $('copy-button').onclick=async()=>{try{await navigator.clipboard.writeText(location.href.split(/[?#]/)[0]);toast('入场链接已复制');}catch{toast('可直接复制浏览器地址分享');}};
 window.addEventListener('keydown',e=>{
   if((e.target as HTMLElement).matches('input,textarea')||document.querySelector('dialog[open]'))return;
+  if(e.code==='Space'&&view==='play'&&!game?.paused){e.preventDefault();if(!e.repeat)game?.interact();return;}
   const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)&&view==='play'){e.preventDefault();keys.add(k);}
   if(k==='escape'&&view==='play'){if(game?.paused)resume();else pause();}
 });

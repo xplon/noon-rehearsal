@@ -1,3 +1,4 @@
+import {SHADOW_SLOPE} from './lighting.ts';
 import {FOLLOW_BEATS} from './direction.ts';
 import {steer,angleDelta,type SteeredMotion} from './locomotion.ts';
 import {MOTION,facing,velocity,arrival,magnet,easedRouteTime,smooth,clamp,type Motion} from './motion.ts';
@@ -9,12 +10,12 @@ export type Vec = { x:number; z:number };
 export type LookTarget = Vec & {height?:number};
 export type Actor = SteeredMotion & {animation:Animation;animTime:number;previous:Animation;previousTime:number;blend:number;pace:number;gaitPhase:number;gazeYaw:number;lookYaw:number;lookPitch:number;lookWeight:number;weights:Record<Animation,number>;clocks:Record<Animation,number>};
 export type Visual = {body:Float32Array;shadow:Float32Array};
-export type Frame = {t:number;stage:Stage;elapsed:number;body:Actor;shadow:Actor;shadowAttachment:number;input:Vec;target:string;bodySource:string;shadowSource:string;line:string;lineId:number;goal:boolean;mode:Mode;ending:string;beat:string;cue:Vec|null;doorOpen:number;signTurn:number;visual?:Visual};
+export type Frame = {t:number;stage:Stage;elapsed:number;body:Actor;shadow:Actor;shadowAttachment:number;input:Vec;target:string;bodySource:string;shadowSource:string;line:string;lineId:number;goal:boolean;mode:Mode;ending:string;beat:string;beatPhase:string;actionLabel:string;cue:Vec|null;doorOpen:number;signTurn:number;visual?:Visual};
 export type Event = {t:number;type:string;[key:string]:unknown};
 export type RoutePoint = Actor & {t:number};
 export const HOME={x:-2.4,z:2.2},EXIT={x:5.4,z:-3.5},BOW={x:1.8,z:-.3},LEFT={x:-3.8,z:-1.5},PLANT={x:-5.8,z:.1,radius:.85};
 export const BOUNDS={left:-7.15,right:7.15,top:-3.9,bottom:4.4};
-export const CONFIG={student:{arrival:36,arrivalMin:22,echoMax:32,follow:76,rejoin:24,rejoinMin:6},teacher:{arrival:40,arrivalMin:26,echoMax:34,follow:120,rejoin:26,rejoinMin:8}};
+export const CONFIG={student:{arrival:30,echoMax:30,rejoin:22},teacher:{arrival:30,echoMax:30,rejoin:24}};
 export const SOURCES:Record<string,string>={input:'当前输入',attached:'随身体投影','recorded-body':'本局身体旧路线','system-demo':'系统代演','system-return':'系统归位',follow:'追随影子',rest:'预设休息动作',bow:'谢幕动作',reverse:'本局影子路线倒放',reconnect:'从当前位置恢复跟随',curtain:'落幕动作',none:'无直接控制',shadow:'影子',body:'身体','settling':'减速并等待会合',reaction:'预设惊讶与迟疑',"reaction-step":'影子试着跟上又收住',"stage-mark":'走向谢幕圈',gesture:'角色的舞台反应'};
 export const dist=(a:Vec,b:Vec)=>Math.hypot(a.x-b.x,a.z-b.z);
 const copy=<T>(v:T):T=>structuredClone(v);
@@ -46,8 +47,10 @@ export class Game {
   bodyNoticeAt=-100;bodyNoticeHold=.65;bodyNoticeKind='';bodyNoticeCooldown=0;bodyAwaitingLead=true;bodyWasMoving=false;leadHeading:number|null=null;
   shadowNoticeAt=-100;shadowNoticeCount=0;shadowAttemptTarget:Vec|null=null;bodyActing:Animation|null=null;shadowActing:Animation|null=null;
   bodyLook:LookTarget|null=null;shadowLook:LookTarget|null=null;
-  arrivalBeat:'door'|'plant'|'courtyard'|'home'='door';followIndex=0;beatTime=0;beatComplete=false;cue:Vec|null={...EXIT};cueDwell=0;
+  arrivalBeat:'door'|'home'='door';followIndex=0;beatTime=0;beatComplete=false;cue:Vec|null={...EXIT};cueDwell=0;
   gestureUntil=0;gesture:Animation='shrug';doorOpen=0;signTurn=0;reverseSourceEnd=0;echoClock=0;echoReady=false;echoPoseFrom:Actor|null=null;
+
+  beatPhase='';beatResolvedAt=-1;beatOutcome='';beatOrigin:Vec={...HOME};beatAnchor:Vec={...HOME};beatTravel=0;beatStartedAt=0;phaseAt=0;actionPending=false;doorDemand=0;reverseSourceStart=0;
 
   constructor(mode:Mode='student',stride=1.0,runStride=2.48){
     this.mode=mode;this.config=CONFIG[mode];this.stride=stride;this.runStride=runStride;
@@ -115,7 +118,7 @@ export class Game {
     a.lookPitch+=(pitch-a.lookPitch)*(1-Math.exp(-dt*8));
     a.lookWeight+=((target?1:0)-a.lookWeight)*(1-Math.exp(-dt*9));
   }
-  shadowGaze():LookTarget{return {x:this.shadow.x+.48,z:this.shadow.z+.38,height:0};}
+  shadowGaze():LookTarget{return {x:this.shadow.x+SHADOW_SLOPE.x*1.15,z:this.shadow.z+SHADOW_SLOPE.z*1.15,height:0};}
   noticeBody(reason:string,hold=1.05){
     this.bodyNoticeAt=this.time;this.bodyNoticeHold=hold;this.bodyNoticeKind=reason;this.bodyNoticeCooldown=this.time+2.3;this.bodyAwaitingLead=false;
     this.event('reaction',{actor:'body',reason,lookFirst:reason==='first-departure'?.32:hold,hold,ramp:1.0});
@@ -145,7 +148,7 @@ export class Game {
   }
   reactShadow(dt:number,active:boolean){
     const separation=dist(this.body,this.shadow);
-    this.shadowLook=separation>.3?{...this.body,height:1.4}:null;
+    this.shadowLook=separation>.75?{...this.body,height:1.4}:null;
     if(!(this.stage==='echo'&&this.echoClock<6)&&!active&&speed(this.body)>.24&&speed(this.shadow)<.12&&separation>.65&&this.shadowNoticeCount<2&&this.time-this.shadowNoticeAt>8){
       this.shadowNoticeAt=this.time;this.shadowNoticeCount++;this.shadowAttemptTarget=null;
       this.event('reaction',{actor:'shadow',reason:'body-left-without-me',hold:.65,attemptDistance:.48});
@@ -159,83 +162,163 @@ export class Game {
     }else if(since<2.65){this.drive(this.shadow,{x:0,z:0},dt);if(speed(this.shadow)<.12)this.shadowActing='reach';this.shadowSource='reaction';}
     else {this.move(this.shadow,this.input,dt);this.shadowSource='input';}
   }
+  actionLabel(){
+    if(this.stage==='rejoin')return dist(this.body,EXIT)<1?'从这里离场':'就留在这里';
+    if(this.stage!=='follow'||this.leaderStopping)return '';
+    if(this.beatResolvedAt>=0&&!(this.stageBeat()==='rest'&&this.time<this.restUntil))return '';
+    const id=FOLLOW_BEATS[this.mode][this.followIndex].id;
+    if(id==='search'&&this.beatPhase==='found')return '';
+    return id==='meet'?'敲敲门':id==='parting'?'叫上搭档':id==='search'?'我在这里':id==='rest'?'叫他起来':id==='bow'?'还没演完':'就演到这里';
+  }
+  interact(){
+    if(this.paused||!this.actionLabel())return;
+    this.actionPending=true;this.event('interaction',{stage:this.stage,beat:this.stageBeat(),action:this.actionLabel(),body:position(this.body),shadow:position(this.shadow)});
+  }
   enterFollowBeat(index:number){
-    this.followIndex=index;this.beatTime=0;this.beatComplete=false;this.cueDwell=0;
+    this.followIndex=index;this.beatTime=0;this.beatComplete=false;this.cueDwell=0;this.beatResolvedAt=-1;this.beatOutcome='';this.beatPhase='invitation';this.beatStartedAt=this.time;this.phaseAt=this.time;this.beatTravel=0;this.actionPending=false;
+    this.beatOrigin=position(this.body);this.beatAnchor=position(this.body);
     const beat=FOLLOW_BEATS[this.mode][index];
-    this.cue=beat.id==='cross'?{...LEFT}:beat.id==='bow'?{...BOW}:beat.id==='rest'?null:{...EXIT};
-    if(beat.id==='around'){
-      this.cue={x:this.body.x-Math.sin(this.body.yaw)*4.3,z:this.body.z-Math.cos(this.body.yaw)*4.3};this.constrain(this.cue);
-      if(dist(this.cue,this.body)<2.2)this.cue={x:this.body.x>0?-4.2:4.8,z:2.6};
+    this.cue=beat.id==='meet'?{...EXIT}:beat.id==='bow'?{...BOW}:null;
+    if(beat.id==='parting'){
+      this.beatPhase='step-back';this.beatAnchor={x:this.body.x-1.2,z:this.body.z+1.6};this.constrain(this.beatAnchor);this.doorDemand=0;
     }
-    if(beat.id==='encore')this.cue={x:-3.4,z:2.6};
-    if(beat.id==='rest')this.restQueued=true;
-    this.event('beat',{stage:'follow',beat:beat.id,minimum:beat.min,maximum:beat.max,target:this.cue});
-    this.say(beat.line,`beat-${beat.id}`,6);
+    if(beat.id==='search')this.beatPhase='looking-away';
+    if(beat.id==='rest'){this.restQueued=true;this.beatPhase='sitting-down';}
+    this.event('beat',{stage:'follow',beat:beat.id,maximum:beat.max,target:this.cue,advance:'interaction-or-visible-response'});
+    this.say(beat.line,`beat-${beat.id}`,8);
+  }
+  resolveBeat(outcome:string,line:string,response=1.6){
+    if(this.beatResolvedAt>=0)return;
+    this.beatComplete=true;this.beatOutcome=outcome;this.beatResolvedAt=this.time+response;
+    this.event('beat-outcome',{beat:this.stageBeat(),outcome,response});
+    this.say(line,`outcome-${outcome}`,response+1);
   }
   stageBeat(){return this.stage==='arrival'?this.arrivalBeat:this.stage==='follow'?FOLLOW_BEATS[this.mode][this.followIndex].id:this.stage;}
   performArrival(dt:number,old:Vec){
     this.move(this.body,this.input,dt,MOTION.speed,this.cue??undefined);this.distance+=dist(old,this.body);
-    if(this.arrivalBeat==='door'&&dist(this.body,EXIT)<.7){
-      this.goal=true;this.arrivalBeat='plant';this.cue={...LEFT};this.event('target-entered',{target:'door'});
-      this.say('门还在准备。顺路看看左边的植物，再回白圈。','plant-instruction',7);
-    }else if(this.arrivalBeat==='plant'&&dist(this.body,LEFT)<.7){
-      this.arrivalBeat='courtyard';this.cue={x:4.2,z:3.5};this.event('target-entered',{target:'plant-side'});
-      this.say('再绕过这边的候场圈。路稍微长一点，马上就好。','courtyard-instruction',6);
-    }else if(this.arrivalBeat==='courtyard'&&this.cue&&dist(this.body,this.cue)<.7){
-      this.arrivalBeat='home';this.cue={...HOME};this.event('target-entered',{target:'courtyard-side'});
-      this.say('好，现在回白圈。请记得自己是怎么走来的。','return-instruction',6);
+    if(this.arrivalBeat==='door'&&dist(this.body,EXIT)<.8){
+      this.goal=true;this.arrivalBeat='home';this.cue={...HOME};this.event('target-entered',{target:'door'});
+      this.say('认得这扇门了。现在回白圈，我们就开始。','return-instruction',7);
     }
-    if(this.arrivalBeat==='plant'&&this.idle>.5&&dist(this.body,LEFT)<2)this.bodyLook={...PLANT,height:1.1};
-    this.homeDwell=this.arrivalBeat==='home'&&dist(this.body,HOME)<.25&&speed(this.body)<.25?this.homeDwell+dt:0;
-    if(this.homeDwell>.45&&this.elapsed<this.config.arrivalMin)this.once('arrival-ready',()=>this.say('已经站稳了。先看看庭院，幕马上就开。','ready',4));
-    if(this.homeDwell>.45&&this.elapsed>=this.config.arrivalMin)this.transition('return','returned-to-home');
-    else if(this.elapsed>=this.config.arrival)this.transition('return','time-limit');
-    else if(this.elapsed>14&&!this.goal)this.once('door-late',()=>this.say('按计划，你这会儿已经到了。看来是计划来早了。','target-not-entered',5,true));
+    this.homeDwell=this.arrivalBeat==='home'&&dist(this.body,HOME)<.35&&speed(this.body)<.3?this.homeDwell+dt:0;
+    if(this.homeDwell>.35)this.transition('return','returned-to-home');
+    else if(this.elapsed>=this.config.arrival){
+      this.transition('return','opening-alternative');
+      if(!this.systemDemo)this.say('就用你刚才走的这一段。演员，回到开头。','opening-alternative',4);
+    }else if(this.elapsed>14&&!this.goal)this.once('door-late',()=>this.say('门在右边。也可以不去；你走的路一样算数。','target-not-entered',6));
   }
   performFollow(dt:number){
     const beats=FOLLOW_BEATS[this.mode],beat=beats[this.followIndex];this.beatTime+=dt;
-    this.move(this.shadow,this.leaderStopping?{x:0,z:0}:this.input,dt,MOTION.speed,this.leaderStopping?undefined:this.cue??undefined);
-    this.shadowSource=this.leaderStopping?'settling':'input';if(this.leaderStopping)this.target='none';
-    if(beat.id==='bow'&&!this.fired.has('bow')&&this.cue&&dist(this.shadow,this.cue)<.65){
-      this.fired.add('bow');this.bowQueued=true;this.event('bow-requested',{target:'bow-mark'});
-    }
-    if(beat.id==='bow'&&this.beatTime>13&&!this.fired.has('bow'))this.once('bow-declined',()=>{
-      this.gesture='shrug';this.gestureUntil=this.time+2.2;this.event('bow-declined',{reason:'mark-not-entered'});
-      this.say('谢幕圈空着。演员决定，先不谢幕。','bow-declined',5);
-    });
-    if(beat.id==='encore'&&this.beatTime>7)this.once('encore-turn',()=>{this.cue={x:4.7,z:2.6};this.say('再换个方向。它正在记住这一小段。','encore-memory',5);});
-    const hold=this.restQueued||this.time<this.riseUntil||this.time<this.bowUntil||this.time<this.gestureUntil;
-    this.bodySource=this.time<this.riseUntil?'rest':this.time<this.bowUntil?'bow':this.bowQueued?'stage-mark':this.time<this.gestureUntil?'gesture':'follow';
-    if(hold){
-      this.drive(this.body,{x:0,z:0},dt);this.bodyLook=this.shadowGaze();
-      if(this.settled(this.body)&&this.restQueued){this.restQueued=false;this.restUntil=this.time+2.2;this.riseUntil=this.restUntil+1.4;this.event('body-rest',{duration:2.2});this.say('您的身体申请了两秒钟离线。','body-rest',5);}
-      if(this.time<this.gestureUntil)this.bodyActing=this.gesture;
-    }else if(this.bowQueued){
-      this.bodyLook={...BOW,height:0};this.follow(this.body,BOW,dt,MOTION.demoSpeed);
-      if(this.settled(this.body,BOW)){this.bowQueued=false;this.bowUntil=this.time+2.6;this.event('bow',{target:'bow-mark'});this.say('身体正在谢幕。影子还在台上。','bow',5);}
-    }else this.followWithReaction(dt,MOTION.followSpeed,this.leaderStopping);
-    if(dist(this.body,this.shadow)>.3)this.shadowLook={...this.body,height:1.4};
-    if(!this.leaderStopping){
-      const reached=this.cue&&dist(this.shadow,this.cue)<.65&&dist(this.body,this.shadow)<.55&&speed(this.body)<.35;
-      this.cueDwell=reached?this.cueDwell+dt:0;
-      if(this.cueDwell>.5&&!this.beatComplete){
-        this.beatComplete=true;this.event('beat-goal',{beat:beat.id,target:this.cue});
-        if(beat.id==='meet'){
-          this.gesture='shrug';this.gestureUntil=this.time+2.2;this.say('到了两位。门坚持说，它只等一个人。','door-count',5);
-        }else if(beat.id==='cross'||beat.id==='around')this.say('赶上了。你还可以再换个方向试试。','caught-up',4);
+    const action=this.actionPending;this.actionPending=false;
+    const old=position(this.shadow),active=Math.hypot(this.input.x,this.input.z)>.1;
+    this.move(this.shadow,this.leaderStopping?{x:0,z:0}:this.input,dt,MOTION.speed,this.leaderStopping?undefined:this.cue??undefined);this.beatTravel+=dist(old,this.shadow);
+    this.shadowSource=this.leaderStopping?'settling':'input';this.bodySource='follow';
+    const gap=dist(this.body,this.shadow);
+    if(this.leaderStopping){
+      this.target='none';this.followWithReaction(dt,MOTION.followSpeed,true);
+    }else if(beat.id==='meet'){
+      this.followWithReaction(dt);
+      // The leaf visibly acknowledges the first arrival, then refuses two.
+      this.doorDemand=dist(this.shadow,EXIT)<1.6?.38:0;
+      this.cueDwell=dist(this.shadow,EXIT)<.8&&gap<.75&&speed(this.body)<.4?this.cueDwell+dt:0;
+      if(this.cueDwell>.35&&this.beatResolvedAt<0){
+        this.doorDemand=0;this.gesture='shrug';this.gestureUntil=this.time+1.8;
+        this.event('beat-goal',{beat:beat.id,target:EXIT});
+        this.resolveBeat('door-count','门刚开了一条缝，又关上了。它数到了两位。',2.1);
       }
-      if(this.beatTime>10&&!this.beatComplete&&!this.line)this.once(`beat-late-${beat.id}`,()=>this.say('您走您的。我把这一段改成自由排练。',`beat-late-${beat.id}`,5,true));
-      const done=(this.beatTime>=beat.min&&(this.beatComplete||['rest','bow','encore'].includes(beat.id)))||this.beatTime>=beat.max;
-      if(done&&this.time>=this.riseUntil&&this.time>=this.bowUntil&&!this.bowQueued){
-        if(this.followIndex<beats.length-1)this.enterFollowBeat(this.followIndex+1);
-        else{
-          this.stopLeading();
+      if(action&&this.beatResolvedAt<0){
+        if(dist(this.shadow,EXIT)<2.2){this.doorDemand=.6;this.event('door-knock');this.say('门听见了。现在等后面那位。','door-knock',4);}
+        else this.say('敲门声够不到。先靠近右边那扇门。','knock-too-far',3);
+      }
+      if(this.beatResolvedAt>=0){this.doorDemand=0;this.bodyLook={...EXIT,height:2};if(speed(this.body)<.15)this.bodyActing='shrug';}
+    }else if(beat.id==='parting'){
+      if(this.beatPhase==='step-back'&&!action&&this.beatResolvedAt<0){
+        this.follow(this.body,this.beatAnchor,dt,1.6);
+        if(this.settled(this.body,this.beatAnchor,.08)){this.beatPhase='choice';this.phaseAt=this.time;this.cue=position(this.body);}
+      }else{
+        this.drive(this.body,{x:0,z:0},dt);this.bodyLook=this.shadowGaze();
+        if(action||this.beatPhase==='choice'&&gap<.9&&dist(this.shadow,EXIT)>1.1){
+          this.bodyActing='reach';this.doorDemand=.2;this.resolveBeat('called-partner','好，一个也不落下。我把名单改成两位。',1.8);
+        }else if(this.beatPhase==='choice'&&active&&dist(this.shadow,EXIT)<1&&gap>1.5){
+          this.bodyActing='reach';this.doorDemand=.8;this.resolveBeat('went-ahead','门开了。可身体没有同意被留在这里。',2.2);
+        }
+        if(this.beatResolvedAt>=0)this.bodyActing='reach';
+      }
+    }else if(beat.id==='search'){
+      if(this.beatPhase==='looking-away'){
+        this.drive(this.body,{x:0,z:0},dt);this.bodyLook={...EXIT,height:2};
+        const dx=this.shadow.x-this.body.x,dz=this.shadow.z-this.body.z;
+        const behind=gap>1.2&&(dx*Math.sin(this.body.yaw)+dz*Math.cos(this.body.yaw))/gap<-.25;
+        if(behind){this.beatPhase='lost';this.phaseAt=this.time;this.event('lost-sight');this.say('等等，刚才还在这一边……','lost-sight',4);}
+        if(action){this.beatPhase='found';this.noticeBody('called-from-here',.45);this.event('partner-called');}
+      }else if(this.beatPhase==='lost'){
+        this.drive(this.body,{x:0,z:0},dt);
+        const scan=this.body.yaw+Math.sin(Math.min(1.5,this.time-this.phaseAt)*2)*.7;
+        this.bodyLook={x:this.body.x+Math.sin(scan)*2,z:this.body.z+Math.cos(scan)*2,height:.5};
+        if(action||this.time-this.phaseAt>1.2){this.beatPhase='found';this.noticeBody('found-behind',.6);this.event('partner-found');}
+      }else{
+        this.followWithReaction(dt);
+        if(gap<.75&&speed(this.body)<.4)this.resolveBeat('found-partner','找到了。原来搭档也会躲猫猫。',1.4);
+      }
+    }else if(beat.id==='rest'){
+      this.drive(this.body,{x:0,z:0},dt);this.bodyLook=this.shadowGaze();this.bodySource='rest';
+      if(action&&this.beatPhase==='rest-together'){this.restUntil=this.time;this.riseUntil=this.time+1.4;this.beatPhase='rising';this.beatResolvedAt=this.riseUntil;this.event('rest-interrupted');this.say('好，现在起身。','rest-interrupted',2);}
+      if(action&&this.restQueued){this.restQueued=false;this.beatPhase='called-before-sitting';this.bodyActing='reach';this.resolveBeat('called-before-sitting','刚要坐下，又被你叫住了。好，一起走。',1.6);}
+      if(this.restQueued&&this.settled(this.body)){
+        this.restQueued=false;this.restUntil=this.time+beat.max;this.riseUntil=this.restUntil+1.4;this.phaseAt=this.time;this.beatPhase='resting';this.event('body-rest',{interruptible:true});
+      }
+      if(this.beatPhase==='resting'&&this.time-this.phaseAt>.7){
+        if(action||active&&gap>2.8){
+          this.restUntil=this.time;this.riseUntil=this.time+1.4;this.beatPhase='rising';
+          this.resolveBeat(action?'woken':'followed-with-eyes',action?'听见了。先撑起身子，再跟你走。':'腿还想歇着，眼睛已经跟过去了。',1.8);
+        }else if(gap<1.1&&!active&&speed(this.shadow)<.12){
+          this.beatPhase='rest-together';this.phaseAt=this.time;this.restUntil=this.time+1.6;this.riseUntil=this.restUntil+1.4;
+          this.resolveBeat('rested-together','影子也坐下了。旁白只好把催促收回去。',3.1);
         }
       }
+      if(this.beatPhase==='rest-together')this.shadowActing=this.time<this.restUntil?'sit':'rise';
+    }else if(beat.id==='bow'){
+      this.bodySource='stage-mark';
+      if(action&&this.beatResolvedAt<0){
+        this.bowQueued=false;this.bowUntil=this.time;this.gesture='shrug';this.gestureUntil=this.time+1.8;this.event('bow-declined',{reason:'player-response'});
+        this.resolveBeat('encore-requested','影子说还没演完。身体把谢幕收了回去。',1.8);
+      }
+      if(this.beatOutcome==='encore-requested'){
+        this.drive(this.body,{x:0,z:0},dt);this.bodyLook=this.shadowGaze();this.bodyActing='shrug';
+      }else if(this.beatPhase==='invitation'){
+        this.follow(this.body,BOW,dt,MOTION.demoSpeed);
+        if(this.settled(this.body,BOW,.06)){
+          this.beatPhase='bowing';this.bowUntil=this.time+2.6;this.phaseAt=this.time;this.event('bow',{target:'bow-mark'});
+          this.say('身体鞠躬了。影子，可以有自己的动作。','bow',4);
+        }
+      }else{
+        this.drive(this.body,{x:0,z:0},dt);this.bodySource='bow';
+        if(gap<1&&speed(this.shadow)<.2){this.shadowActing='bow';this.once('shared-bow',()=>this.event('shadow-bow'));}
+        if(this.time>=this.bowUntil)this.resolveBeat(this.fired.has('shared-bow')?'bowed-together':'bowed-apart',this.fired.has('shared-bow')?'这次，他们一起谢幕。':'身体谢幕了。影子把它当成了开场。',1.5);
+      }
+    }else{
+      this.followWithReaction(dt);
+      if(action||this.beatTravel>2.5&&!active&&this.idle>.7&&speed(this.shadow)<.15){
+        this.resolveBeat('improvisation-finished','记下了。刚才的那段动作，还有自己的主意。',1.4);this.stopLeading();
+      }
     }
-    this.settleDwell=this.leaderStopping&&this.time>=this.riseUntil&&this.time>=this.bowUntil&&!this.bowQueued&&this.settled(this.shadow)&&this.settled(this.body,this.shadow)?this.settleDwell+dt:0;
+    if(gap>.75)this.shadowLook={...this.body,height:1.4};
+    if(!this.leaderStopping){
+      if(this.beatTime>=beat.max&&this.beatResolvedAt<0){
+        // A non-participating player still gets an honest, visible alternate scene.
+        if(beat.id==='rest'){this.restQueued=false;this.restUntil=this.time;this.riseUntil=this.time+1.4;}
+        const lines:Record<string,string>={meet:'门没有等到我们。先商量一下，谁带谁走。',parting:'谁也没先走。身体决定：一起吧。',search:'还没会合。没关系，下一幕也可以边走边找。',rest:'这次休息够了。身体自己站起来。',bow:'谢幕没有按计划发生。那就让结尾自己来。',encore:'这一段，就记到这里。安静也是刚才的一部分。'};
+        this.event('beat-fallback',{beat:beat.id,reason:'no-resolution'});this.resolveBeat('alternate',lines[beat.id],1.8);
+      }
+      if(this.beatResolvedAt>=0&&this.time>=this.beatResolvedAt&&this.time>=this.riseUntil&&this.time>=this.bowUntil){
+        this.restQueued=false;this.cue=null;
+        if(this.mode==='student'&&beat.id==='bow'&&this.beatOutcome!=='encore-requested')this.stopLeading();
+        else if(this.followIndex<beats.length-1)this.enterFollowBeat(this.followIndex+1);else this.stopLeading();
+      }
+    }
+    this.settleDwell=this.leaderStopping&&this.settled(this.shadow)&&this.settled(this.body,this.shadow)?this.settleDwell+dt:0;
     if(this.settleDwell>0)this.shadowAttachment=smooth(this.settleDwell/.65);
-    if(this.settleDwell>=.65){
+    if(this.settleDwell>=.65&&this.time>=this.beatResolvedAt){
       this.shadow=copy(this.body);this.event('actors-met',{distance:0});
       this.reverseRoute.push(...this.shadowRoute.filter(p=>p.t>this.reverseSourceEnd),this.routePoint(this.shadow,this.time));
       this.transition(this.mode==='teacher'?'reverse':'rejoin');
@@ -271,14 +354,14 @@ export class Game {
     }else if(next==='reverse'){
       this.target='none';this.bodySource='follow';this.shadowSource='settling';this.reverseStarted=false;this.reverseClock=0;this.shadowAttachment=0;this.bodyAwaitingLead=true;this.leadHeading=null;
     }else if(next==='rejoin'){
-      this.target='body';this.bodySource='input';this.shadowSource='attached';this.reconnected=true;this.shadowAttachment=1;this.cue={...EXIT};this.event('control-returned');
+      this.target='body';this.bodySource='input';this.shadowSource='attached';this.reconnected=true;this.shadowAttachment=1;this.cue={...EXIT};this.event('control-returned');this.actionPending=false;this.say('现在，离开或留下都可以。这一次，由你收尾。','exit-instruction',8);
     }
   }
   stopLeading(){
     if(this.leaderStopping)return;
     this.leaderStopping=true;this.cue=null;
-    this.reverseSourceEnd=this.time;this.reverseRoute=this.shadowRoute.filter(p=>p.t>=this.time-8);this.reverseRoute.push(this.routePoint(this.shadow,this.time));
-    this.event('lead-window-end',{sourceEnd:this.time,sourceStart:Math.max(0,this.time-8)});
+    this.reverseSourceEnd=this.time;this.reverseSourceStart=Math.max(this.time-8,this.mode==='teacher'&&this.stageBeat()==='encore'?this.beatStartedAt:0);this.reverseRoute=this.shadowRoute.filter(p=>p.t>=this.reverseSourceStart);this.reverseRoute.push(this.routePoint(this.shadow,this.time));
+    this.event('lead-window-end',{sourceEnd:this.time,sourceStart:this.reverseSourceStart});
   }
   skip(){
     if(this.stage==='ended'||this.stage==='curtain')return;this.event('host-skip',{stage:this.stage});
@@ -296,6 +379,7 @@ export class Game {
   step(dt=1/60){
     if(this.paused||this.stage==='ended')return;
     this.time+=dt;this.elapsed+=dt;this.tick++;
+    if(this.stage==='follow')this.doorOpen+=(this.doorDemand-this.doorOpen)*(1-Math.exp(-dt*3));
     const oldB=position(this.body),oldS=position(this.shadow),active=Math.hypot(this.input.x,this.input.z)>.1;
     this.idle=active?0:this.idle+dt;if(this.time>this.lineUntil){this.line='';this.lineId=-1;}
     let recordedBody=false,recordedShadow=false;this.bodyActing=null;this.shadowActing=null;this.bodyLook=null;this.shadowLook=null;
@@ -345,8 +429,9 @@ export class Game {
             if(previous){const segment=dist(previous,point);if(segment<.003)continue;this.reverseLength+=segment;}
             this.reversePath.push({distance:this.reverseLength,point});
           }
-          this.reverseDuration=Math.max(12,this.reverseLength/MOTION.reverseSpeed+2.0);this.reverseStarted=true;this.reverseClock=0;this.shadowSource='reverse';
-          this.event('reverse-start',{duration:this.reverseDuration,length:this.reverseLength,retiming:'arc-length with eased start and stop',sourceWindow:8,sourceEnd:this.reverseSourceEnd||this.time,settlingIncluded:true});
+          this.reverseDuration=this.reverseLength<.25?0:Math.max(2.4,this.reverseLength/MOTION.reverseSpeed+2.0);this.reverseStarted=true;this.reverseClock=0;this.shadowSource='reverse';
+          this.event('reverse-start',{duration:this.reverseDuration,length:this.reverseLength,retiming:'arc-length with eased start and stop',sourceWindow:this.reverseSourceEnd-this.reverseSourceStart,sourceStart:this.reverseSourceStart,sourceEnd:this.reverseSourceEnd||this.time,settlingIncluded:true});
+          if(this.reverseLength<.25)this.say('刚才的影子没有走远。这一段，原地谢过。','reverse-still',3);
         }
       }else if(this.reverseClock<this.reverseDuration){
         this.reverseClock=Math.min(this.reverseDuration,this.reverseClock+dt);
@@ -357,7 +442,7 @@ export class Game {
         const p={x:left.point.x+(right.point.x-left.point.x)*f,z:left.point.z+(right.point.z-left.point.z)*f};
         this.follow(this.shadow,p,dt,MOTION.catchUpSpeed);recordedShadow=false;
         this.followWithReaction(dt,MOTION.catchUpSpeed);
-        if(this.reverseClock>3)this.once('reverse-reveal',()=>this.say('影子把你刚才的意思，当成了现在的命令。','reverse-reveal'));
+        if(this.reverseClock>.8)this.once('reverse-reveal',()=>this.say('影子把你刚才的意思，当成了现在的命令。','reverse-reveal'));
       }else{
         this.follow(this.shadow,this.reversePath.at(-1)!.point,dt,MOTION.catchUpSpeed);this.follow(this.body,this.shadow,dt,MOTION.catchUpSpeed);
         this.settleDwell=this.settled(this.shadow)&&this.settled(this.body,this.shadow)?this.settleDwell+dt:0;
@@ -369,8 +454,9 @@ export class Game {
       this.doorOpen+=(1-this.doorOpen)*(1-Math.exp(-dt*2));
       this.follow(this.shadow,this.body,dt,MOTION.attachSpeed);
       if(!active&&this.settled(this.body)&&this.settled(this.shadow,this.body,.012)){this.reconnected=true;this.shadowSource='attached';}
-      if(this.elapsed>=4)this.once('rejoin-reveal',()=>this.say('可以再试着走一步。现在，离开或留下都可以。','exit-instruction'));
-      if(this.elapsed>this.config.rejoinMin&&dist(this.body,EXIT)<.55&&speed(this.body)<.4)this.finish('exit');else if(this.elapsed>=this.config.rejoin)this.finish(this.idle>6?'stillness':'lingering');
+      if(this.actionPending){this.actionPending=false;this.finish(dist(this.body,EXIT)<1?'exit':'stillness');}
+      else if(dist(this.body,EXIT)<.8&&speed(this.body)<.5)this.finish('exit');
+      else if(this.elapsed>=this.config.rejoin)this.finish(this.idle>6?'stillness':'lingering');
     }else if(this.stage==='curtain'){
       if(this.curtainActing&&this.ending==='exit'){
         this.doorOpen+=(1-this.doorOpen)*(1-Math.exp(-dt*3));
@@ -399,11 +485,11 @@ export class Game {
       // Once united, both actors perform the same bow/sit, including every bone and cloth movement.
       if(this.curtainActing&&!['exit','lingering'].includes(this.ending))this.shadow=copy(this.body);
       else if(this.curtainActing&&this.ending==='lingering')this.animate(this.shadow,'sit',dt,0);
-      else if(this.time<this.bowUntil&&shadowSpeed<.08)this.animate(this.shadow,'bow',dt,0);
-      else this.animate(this.shadow,this.shadowActing??(shadowSpeed>.07?'walk':bodySpeed>.15&&dist(this.body,this.shadow)>.5&&!(this.stage==='echo'&&this.echoClock<6)?'struggle':'idle'),dt,shadowSpeed);
+
+      else this.animate(this.shadow,this.shadowActing??(shadowSpeed>.07?'walk':'idle'),dt,shadowSpeed);
       if(!this.curtainActing)this.lookAt(this.shadow,this.shadowLook,dt);
     }
-    const quiet=this.stage==='echo'&&this.echoClock<6;
+    const quiet=this.stage==='echo'&&this.echoClock<6||this.stage==='follow';
     if(!quiet&&!['curtain','ended','return'].includes(this.stage)&&!this.line&&this.elapsed>8){
       if(this.idle>6)this.once(`${this.stage}-idle`,()=>this.say('您似乎决定留一会儿。那我也把话说慢一点。','no-input-6s',5,true));
       else if(dist(this.body,PLANT)<1.9)this.once('planter',()=>this.say('花盆原本没有戏份。它现在有了。','near-planter'));
@@ -412,9 +498,9 @@ export class Game {
     if(this.stage==='arrival')this.route.push(this.routePoint(this.body,this.elapsed));
     this.shadowRoute.push(this.routePoint(this.shadow,this.time));if(this.tick%2===0||this.stage==='ended')this.record();
   }
-  snapshot():Frame{return {t:this.time,stage:this.stage,elapsed:this.elapsed,body:copy(this.body),shadow:copy(this.shadow),shadowAttachment:this.shadowAttachment,input:{...this.input},target:this.target,bodySource:this.bodySource,shadowSource:this.shadowSource,line:this.line,lineId:this.lineId,goal:this.goal,mode:this.mode,ending:this.ending,beat:this.stageBeat(),cue:this.cue?{...this.cue}:null,doorOpen:this.doorOpen,signTurn:this.signTurn};}
+  snapshot():Frame{return {t:this.time,stage:this.stage,elapsed:this.elapsed,body:copy(this.body),shadow:copy(this.shadow),shadowAttachment:this.shadowAttachment,input:{...this.input},target:this.target,bodySource:this.bodySource,shadowSource:this.shadowSource,line:this.line,lineId:this.lineId,goal:this.goal,mode:this.mode,ending:this.ending,beat:this.stageBeat(),beatPhase:this.beatPhase,actionLabel:this.actionLabel(),cue:this.cue?{...this.cue}:null,doorOpen:this.doorOpen,signTurn:this.signTurn};}
   record(){this.frames.push(this.snapshot());}
-  export(){return {schemaVersion:5,build:'0.5.0',assetVersion:'actor-5',mode:this.mode,duration:this.time,systemDemo:this.systemDemo,ending:this.ending,events:this.events,frames:this.frames};}
+  export(){return {schemaVersion:6,build:'0.6.0',assetVersion:'actor-5',mode:this.mode,duration:this.time,systemDemo:this.systemDemo,ending:this.ending,events:this.events,frames:this.frames};}
 }
 export function frameAt(frames:Frame[],time:number):Frame {
   let lo=0,hi=frames.length-1;while(lo<hi){const m=Math.ceil((lo+hi)/2);if(frames[m].t<=time)lo=m;else hi=m-1;}

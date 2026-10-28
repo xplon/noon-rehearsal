@@ -4,12 +4,13 @@ import {STAGE_COLORS as C,createStageMaterial,type StageSurfaceRole} from './sta
 import {createInkPipeline} from './ink-outline';
 import {courtyardMotion} from './environment-motion';
 import {addBotanical,type BotanicalInstance} from './botanical-assets';
+import {SUN,SHADOW_SLOPE,SHADOW_HEIGHT} from './lighting';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { ANIMATIONS, BOW, HOME, EXIT, PLANT, type Actor, type Frame, type Visual, type Vec } from './engine';
+import { BOW, HOME, EXIT, PLANT, type Frame, type Visual, type Vec } from './engine';
 
 
-type Rig={root:THREE.Group,mixer:THREE.AnimationMixer,actions:Map<string,THREE.AnimationAction>,nodes:THREE.Object3D[]};
+import {poseRig,type Rig} from './rig-pose';
 export class StageScene {
   renderer:THREE.WebGLRenderer; scene=new THREE.Scene(); camera:THREE.OrthographicCamera;
   ink:ReturnType<typeof createInkPipeline>;outlineExclusions:THREE.Object3D[]=[];
@@ -31,7 +32,7 @@ export class StageScene {
     this.renderer.domElement.setAttribute('aria-label','正午庭院，固定镜头的三维互动舞台');this.host.append(this.renderer.domElement);
     this.camera=new THREE.OrthographicCamera(-13,13,8,-8,.1,100);this.camera.position.set(12,19,26);this.camera.lookAt(0,1,-.5);
     const ambient=new THREE.AmbientLight(0xfff3dc,1.6);this.scene.add(ambient);
-    const sun=new THREE.DirectionalLight(0xffedc4,2.5);sun.position.set(-10,16,-8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+    const sun=new THREE.DirectionalLight(0xffedc4,2.5);sun.position.set(SUN.x,SUN.y,SUN.z);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
     Object.assign(sun.shadow.camera,{left:-17,right:17,top:16,bottom:-15,near:.1,far:60});sun.shadow.bias=-.00025;sun.shadow.normalBias=.035;
     this.scene.add(sun);this.scene.add(this.stage,this.actors,this.overlay,this.trace);
     this.floor=this.box(0,-.3,0,22,.6,15,C.sand,true);this.floor.receiveShadow=true;
@@ -177,7 +178,7 @@ export class StageScene {
       const leaf=this.mesh(new THREE.CircleGeometry(.09,3),C.lightCoral);leaf.rotation.x=-Math.PI/2;leaf.position.set(-5.2+Math.sin(i*4)*.9,.018,1+Math.cos(i*2)*.8);
     }
   }
-  ring(x:number,z:number,r:number,color:number){const m=new THREE.Mesh(new THREE.RingGeometry(r-.025,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.025,z);this.stage.add(m);return m;}
+  ring(x:number,z:number,r:number,color:number){const m=new THREE.Mesh(new THREE.RingGeometry(r-.05,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.052,z);this.stage.add(m);return m;}
   async load(){
     const [gltf,manifest,botanicals]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb?v=5`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json?v=5`).then(r=>r.json()),Promise.all(this.plantHosts.map(({node,seed})=>addBotanical(node,{height:1.8,seed,materialFor:color=>this.material(color,'environment',THREE.DoubleSide)})))]);this.botanicals=botanicals;this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
     const bounds=new THREE.Box3().setFromObject(gltf.scene);this.actorScale=2.07/(bounds.max.y-bounds.min.y);
@@ -192,13 +193,13 @@ export class StageScene {
         const flat=new THREE.MeshBasicMaterial({color:C.blue,side:THREE.DoubleSide,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
         flat.onBeforeCompile=shader=>{
           shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`vec4 projectedWorld = modelMatrix * vec4( transformed, 1.0 );
-            projectedWorld.x += projectedWorld.y * 0.625;
-            projectedWorld.z += projectedWorld.y * 0.5;
-            projectedWorld.y = 0.028;
+            projectedWorld.x += projectedWorld.y * ${SHADOW_SLOPE.x};
+            projectedWorld.z += projectedWorld.y * ${SHADOW_SLOPE.z};
+            projectedWorld.y = ${SHADOW_HEIGHT};
             vec4 mvPosition = viewMatrix * projectedWorld;
             gl_Position = projectionMatrix * mvPosition;`);
         };
-        flat.customProgramCacheKey=()=> 'ground-projection-v1';return flat;
+        flat.customProgramCacheKey=()=> 'ground-projection-v2';return flat;
       }
       return this.material(color,'actor',original.side);
     };
@@ -215,40 +216,6 @@ export class StageScene {
     const nodes:THREE.Object3D[]=[];root.traverse(n=>{if(n instanceof THREE.Bone)nodes.push(n);});
     return {root,mixer,actions,nodes};
   }
-  pose(rig:Rig,a:Actor,values?:Float32Array){
-    rig.root.position.set(a.x,0,a.z);rig.root.rotation.y=a.yaw;
-    if(values?.length===rig.nodes.length*10){
-      rig.actions.forEach(action=>action.enabled=false);
-      rig.nodes.forEach((node,i)=>{const j=i*10;node.position.fromArray(values,j);node.quaternion.fromArray(values,j+3);node.scale.fromArray(values,j+7);});
-    }else{
-      rig.actions.forEach(action=>{action.enabled=false;action.weight=0;});
-      for(const name of ANIMATIONS){
-        const action=rig.actions.get(name)||rig.actions.get(name==='struggle'?'look':'idle');
-        if(!action||a.weights[name]<1e-6)continue;
-        const duration=action.getClip().duration;
-        const time=name==='walk'||name==='chase'?(a.gaitPhase+(this.phaseOffsets[name]||0))*duration:name.startsWith('pivot_')?a.pivotPhase*duration:a.clocks[name];
-        action.enabled=true;action.weight+=a.weights[name];
-        action.time=['bow','shrug','turn','sit','rise','look','surprise','reach'].includes(name)?Math.min(time,duration-1e-5):time%duration;
-      }
-      rig.mixer.update(0);
-      // Add the recorded gaze after clip mixing, using world-up in each bone's parent frame.
-      if(a.lookWeight>.001){
-        rig.root.updateMatrixWorld(true);
-        for(const [name,share] of [['chest',.28],['head',.72]] as const){
-          const bone=rig.nodes.find(n=>n.name===name);if(!bone?.parent)continue;
-          const inverse=bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
-          const axis=new THREE.Vector3(0,1,0).applyQuaternion(inverse);
-          bone.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis,a.lookYaw*a.lookWeight*share));
-          if(name==='head'){
-            const right=new THREE.Vector3(Math.cos(a.yaw),0,-Math.sin(a.yaw)).applyQuaternion(inverse);
-            bone.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(right,a.lookPitch*a.lookWeight));
-          }
-          bone.updateMatrixWorld(true);
-        }
-      }
-    }
-    rig.root.updateMatrixWorld(true);
-  }
   capture():Visual{
     const capture=(rig:Rig|null)=>{const values=new Float32Array((rig?.nodes.length??0)*10);rig?.nodes.forEach((node,i)=>{node.position.toArray(values,i*10);node.quaternion.toArray(values,i*10+3);node.scale.toArray(values,i*10+7);});return values;};
     return {body:capture(this.body),shadow:capture(this.shadow)};
@@ -256,7 +223,7 @@ export class StageScene {
   apply(frame:Frame){
     this.lastFrame=frame;
     if(this.body&&this.shadow){
-      this.pose(this.body,frame.body,frame.visual?.body);this.pose(this.shadow,frame.shadow,frame.visual?.shadow);
+      poseRig(this.body,frame.body,this.phaseOffsets,frame.visual?.body);poseRig(this.shadow,frame.shadow,this.phaseOffsets,frame.visual?.shadow);
       const attachment=frame.shadowAttachment;
       if(attachment>0){
         this.shadow.root.position.lerp(this.body.root.position,attachment);
@@ -270,7 +237,7 @@ export class StageScene {
     this.homeRing.visible=at(HOME)||frame.stage==='return';
     this.exitRing.visible=at(EXIT);
     this.bowRing.visible=!!frame.cue&&!at(HOME)&&!at(EXIT);
-    if(frame.cue)this.bowRing.position.set(frame.cue.x,.025,frame.cue.z);
+    if(frame.cue)this.bowRing.position.set(frame.cue.x,.052,frame.cue.z);
     const motion=courtyardMotion(frame.t);
     this.doorHinge.rotation.y=-1.4*frame.doorOpen+motion.doorAngle*(1-frame.doorOpen);
     this.signHinge.rotation.y=Math.PI*frame.signTurn;
