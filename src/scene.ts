@@ -14,7 +14,7 @@ import {poseRig,type Rig} from './rig-pose';
 export class StageScene {
   renderer:THREE.WebGLRenderer; scene=new THREE.Scene(); camera:THREE.OrthographicCamera;
   ink:ReturnType<typeof createInkPipeline>;outlineExclusions:THREE.Object3D[]=[];
-  plantHosts:{node:THREE.Group;seed:number}[]=[];botanicals:BotanicalInstance[]=[];doorHinge=new THREE.Group();signHinge=new THREE.Group();lastShadowUpdate=-1;
+  plantHosts:{node:THREE.Group;seed:number}[]=[];botanicals:BotanicalInstance[]=[];doorHinge=new THREE.Group();signHinge=new THREE.Group();doorRoster=new THREE.Group();rosterPips:THREE.Mesh[]=[];lastShadowUpdate=-1;
   stage=new THREE.Group(); actors=new THREE.Group(); body:Rig|null=null; shadow:Rig|null=null;
   clips:THREE.AnimationClip[]=[]; materialCache=new Map<string,THREE.MeshToonMaterial>();
   homeRing:THREE.Mesh; exitRing:THREE.Mesh; bowRing:THREE.Mesh;
@@ -145,7 +145,15 @@ export class StageScene {
     const leaf=this.mesh(new THREE.ExtrudeGeometry(shape,{depth:.06,bevelEnabled:false,curveSegments:20}),C.green,false,panel);leaf.position.z=-.03;
     for(let x=-.6;x<=.7;x+=.3)this.line([[x,.1,.045],[x,2.3,.045]],C.ink,.22,panel);
     this.box(0,1,.08,.05,2,.07,C.ink,false,panel);this.cylinder(.2,1.2,.15,.065,.065,.09,C.cream,12,panel).rotation.x=Math.PI/2;
-    this.box(0,.04,.6,2.3,.08,1,C.lightCoral,true,g);
+    // Flush threshold inlay stays below the actor projection and cue rings.
+    this.box(0,.012,.6,2.3,.024,1,C.lightCoral,true,g);
+    // Two physical admission tokens emerge only after the apparent single actor splits.
+    this.doorRoster.position.set(-1.45,1.65,.22);g.add(this.doorRoster);
+    this.box(0,0,0,.43,.92,.09,C.cream,false,this.doorRoster);
+    for(const y of [.22,-.22]){
+      const pip=this.cylinder(0,y,.07,.12,.12,.035,C.ink,20,this.doorRoster);pip.rotation.x=Math.PI/2;this.rosterPips.push(pip);
+    }
+    this.doorRoster.visible=false;
     // A hand-built sign: simple arrow, no font in the 3D world.
     this.signHinge.position.set(1.75,2.5,.1);g.add(this.signHinge);
     this.box(0,0,0,.85,.65,.12,C.cream,false,this.signHinge);
@@ -240,6 +248,8 @@ export class StageScene {
     if(frame.cue)this.bowRing.position.set(frame.cue.x,.052,frame.cue.z);
     const motion=courtyardMotion(frame.t);
     this.doorHinge.rotation.y=-1.4*frame.doorOpen+motion.doorAngle*(1-frame.doorOpen);
+    this.doorRoster.visible=frame.doorSlots>0;
+    this.rosterPips.forEach((pip,i)=>pip.scale.setScalar(i<frame.doorSlots?1:.35));
     this.signHinge.rotation.y=Math.PI*frame.signTurn;
     for(const botanical of this.botanicals)botanical.update(frame.t,motion.wind);
     // Moving foliage and the hinged door keep their real cast shadows in step.

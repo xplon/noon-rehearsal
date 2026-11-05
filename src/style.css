@@ -93,3 +93,5 @@ dialog{border:1px solid #30334c50;background:#fff3d8;color:var(--ink);padding:50
 
 .stage-action{position:absolute;bottom:13px;left:50%;transform:translateX(-50%);z-index:5;border:1px solid #30334c65;background:#fff0c9eb;padding:9px 23px;min-width:154px;box-shadow:3px 3px 0 #30334c18;font-size:13px;line-height:1.5;touch-action:manipulation}.stage-action small{display:block;font-size:9px;opacity:.55;letter-spacing:.08em}.stage-action:hover{background:#fff6dc}.stage-action:active{box-shadow:1px 1px 0 #30334c18}.stage-action:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 @media(orientation:landscape) and (max-height:600px) and (max-width:1100px){.stage-action{left:auto;right:12px;bottom:134px;transform:none;min-width:104px;max-width:110px;min-height:44px;padding:12px 5px;font-size:12px}.stage-action small{font-size:8px}.stage-action small{display:none}}
+
+.analysis-card .clip-quote{font-family:var(--serif);color:var(--ink);margin-top:7px;font-size:12px;line-height:1.6}

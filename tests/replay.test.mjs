@@ -13,7 +13,7 @@ test('replay interpolates captured bone positions, unit rotations and animated s
 });
 test('review cards never manufacture missing stage events or an interpretation',()=>{
  const g=new Game();g.finish('host-ended');g.record();const clips=makeClips(g.frames,g.events);
- assert.equal(clips.length,2);assert(clips.at(-1).fact.includes('没有触发'));assert(!clips.some(c=>c.name==='熟悉的动作'));
+ assert.equal(clips.length,1);assert(!clips.some(c=>c.quote));assert(!clips.some(c=>c.name==='熟悉的动作'));
 });
 test('typed pose arrays export as plain JSON arrays and survive gzip',async()=>{
  const pose=new Float32Array([1,.25,0,0,0,0,1,1,.2,1]);

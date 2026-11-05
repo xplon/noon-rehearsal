@@ -19,7 +19,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
       <p class="eyebrow"><span class="sun-mark">✳</span> 互动短剧 / 第一号庭院</p>
       <h1>请入场<span class="punctuation">。</span></h1>
       <p class="invitation">门已经在那里。<br>接下来，请你走一小段路。</p>
-      <fieldset class="mode-switch"><legend class="sr-only">选择演出版本</legend><label><input type="radio" name="mode" value="student" checked><span>个人体验 <small>约 1–2 分钟</small></span></label><label><input type="radio" name="mode" value="teacher"><span>剧场演出 <small>即兴与回看</small></span></label></fieldset>
+      <fieldset class="mode-switch"><legend class="sr-only">选择演出版本</legend><label><input type="radio" name="mode" value="student" checked><span>个人体验 <small>约 1–3 分钟</small></span></label><label><input type="radio" name="mode" value="teacher"><span>剧场演出 <small>即兴与回看</small></span></label></fieldset>
       <button id="start-button" class="primary" disabled><span>正在布置舞台</span><span aria-hidden="true">→</span></button>
       <p class="small-note">方向键 / WASD 移动 · 手机使用方向盘<br>静音也能完整体验 · 剧场版结束后可回看</p>
     </section>
@@ -37,13 +37,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
       <div class="review-heading"><p class="eyebrow">本场演出记录 / RECORDED HERE</p><h2>刚才，是谁在走？</h2><p>先看一次，再打开幕后的线索。</p></div>
       <div class="clip-tabs" id="clip-tabs" role="tablist" aria-label="回看片段"></div>
       <div id="replay-subtitle" class="replay-subtitle"></div>
-      <div class="review-bottom"><div class="transport"><button id="replay-play" aria-label="播放片段">▷</button><span id="replay-time">00:00</span><input id="timeline" type="range" min="0" max="1" value="0" step="0.033" aria-label="回看时间"><span id="replay-end">00:00</span><button id="evidence-button" aria-pressed="false">展开线索</button></div><div class="analysis-card"><div><span class="eyebrow" id="clip-concept"></span><h3 id="clip-question"></h3><p id="clip-fact"></p></div><div class="evidence-values" id="evidence-values" hidden></div></div><div id="correction" class="correction" hidden></div><div class="review-actions"><button id="correct-button">旁白，改口。</button><button id="export-button">保存本局记录 ↓</button><button id="new-button">重新入场 ↗</button></div></div>
+      <div class="review-bottom"><div class="transport"><button id="replay-play" aria-label="播放片段">▷</button><span id="replay-time">00:00</span><input id="timeline" type="range" min="0" max="1" value="0" step="0.033" aria-label="回看时间"><span id="replay-end">00:00</span><button id="evidence-button" aria-pressed="false">展开线索</button></div><div class="analysis-card"><div><span class="eyebrow" id="clip-concept"></span><h3 id="clip-question"></h3><p id="clip-fact"></p><p id="clip-quote" class="clip-quote" hidden></p></div><div class="evidence-values" id="evidence-values" hidden></div></div><div id="correction" class="correction" hidden></div><div class="review-actions"><button id="correct-button">旁白，说明你的安排。</button><button id="export-button">保存本局记录 ↓</button><button id="new-button">重新入场 ↗</button></div></div>
     </section>
     <section id="pause-panel" class="pause-panel" hidden><p class="eyebrow">幕间 / INTERMISSION</p><h2>庭院会等你。</h2><p>演出时间已暂停。</p><button id="resume-button" class="primary"><span>继续这一场</span><span>→</span></button><button id="leave-button" class="text-button">结束这一场</button></section>
   </main>
   <footer class="footer"><span>一个关于行动与观看的互动作品</span><span class="footer-center">EST. AT NOON <span>✳</span></span><button id="share-button" class="text-button">邀请另一个人入场 ↗</button></footer>
 </div>
-<dialog id="about-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">入场之前</p><h2>用一小段时间，<br>走进一处庭院。</h2><p>电脑使用方向键或 WASD；手机横屏，拖动右侧方向盘。出现动作提示时，按空格或点按按钮回应搭档。游戏不计分，也不需要每一步都照着提示走。</p><p>个人体验约一至两分钟；剧场演出稍长，适合投影和旁观。个人体验在片名出现时结束；剧场演出包含休息、谢幕和倒走，结束后可回看自己的动作。</p><div class="notice"><strong>关于本局记录</strong><p>角色轨迹与操作保存在当前页面，用于本场演出与剧场版回看。不采集姓名、摄像头或麦克风，不上传游玩记录。分享或展示他人的体验前，请先征得同意。关闭或刷新页面会清除未导出的记录。</p></div><p class="asset-credit">角色改编自 <a href="https://kaylousberg.com/game-assets" target="_blank" rel="noopener">Kay Lousberg · KayKit</a>（CC0）；植物来自 <a href="https://kenney.nl/assets/nature-kit" target="_blank" rel="noopener">Kenney · Nature Kit</a>（CC0）。</p><button class="primary dialog-close-action"><span>知道了</span><span>→</span></button></dialog>
+<dialog id="about-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">入场之前</p><h2>用一小段时间，<br>走进一处庭院。</h2><p>电脑使用方向键或 WASD；手机横屏，拖动右侧方向盘。出现动作提示时，按空格或点按按钮回应搭档。游戏不计分，也不需要每一步都照着提示走。</p><p>个人体验约一至三分钟，剧场演出约两至三分钟；选择与探索会改变长度，随时可以暂停或提前结束。个人体验在片名出现时结束；剧场演出结束后可回看自己的动作。</p><div class="notice"><strong>关于本局记录</strong><p>角色轨迹与操作保存在当前页面，用于本场演出与剧场版回看。不采集姓名、摄像头或麦克风，不上传游玩记录。分享或展示他人的体验前，请先征得同意。关闭或刷新页面会清除未导出的记录。</p></div><p class="asset-credit">角色改编自 <a href="https://kaylousberg.com/game-assets" target="_blank" rel="noopener">Kay Lousberg · KayKit</a>（CC0）；植物来自 <a href="https://kenney.nl/assets/nature-kit" target="_blank" rel="noopener">Kenney · Nature Kit</a>（CC0）。</p><button class="primary dialog-close-action"><span>知道了</span><span>→</span></button></dialog>
 <dialog id="share-dialog"><button class="dialog-close" aria-label="关闭">×</button><p class="eyebrow">一人，一场。</p><h2>在你的庭院里见。</h2><canvas id="qr"></canvas><p>扫码进入个人体验</p><button id="copy-button" class="primary"><span>复制入场链接</span><span>↗</span></button></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <section id="rotation-guide" class="rotation-guide" aria-label="手机横屏游玩" hidden><div class="rotate-device" aria-hidden="true"><span>↻</span></div><p class="eyebrow">把庭院展开</p><h2>横过来，再入场。</h2><p>请将手机转为横屏。<br>留出足够的空间，看清人物与庭院。</p><small>若已开始，演出会暂停等你。</small></section>`;
@@ -92,8 +92,8 @@ function selectClip(i:number){
   $('evidence-button').setAttribute('aria-pressed','false');$('evidence-button').textContent='展开线索';$('evidence-values').hidden=true;$('correction').hidden=true;$('replay-play').textContent='▷';
   $('clip-tabs').querySelectorAll('button').forEach((b,j)=>b.setAttribute('aria-selected',String(j===i)));
   const timeline=$<HTMLInputElement>('timeline');timeline.min=String(c.start);timeline.max=String(c.end);timeline.value=String(c.start);
-  $('replay-end').textContent=time(c.end);$('clip-concept').textContent=c.eyebrow;$('clip-question').textContent=c.question;$('clip-fact').textContent=c.fact;
-  $('correct-button').hidden=i!==clips.length-1;
+  $('replay-end').textContent=time(c.end);$('clip-concept').textContent=c.eyebrow;$('clip-question').textContent=c.question;$('clip-fact').textContent=c.fact;$('clip-quote').hidden=!c.quote;$('clip-quote').textContent=c.quote?`本局原话：「${c.quote}」`:'';
+  $('correct-button').hidden=!c.quote;
   renderReplay();
 }
 function renderReplay(){
@@ -151,7 +151,7 @@ $('home-link').onclick=e=>{e.preventDefault();if(view==='play'){pause();return;}
 $('replay-play').onclick=()=>{if(replayTime>=clips[clipIndex].end)replayTime=clips[clipIndex].start;replayPlaying=!replayPlaying;$('replay-play').textContent=replayPlaying?'Ⅱ':'▷';};
 $<HTMLInputElement>('timeline').oninput=e=>{replayTime=Number((e.target as HTMLInputElement).value);replayPlaying=false;$('replay-play').textContent='▷';renderReplay();};
 $('evidence-button').onclick=()=>{evidence=!evidence;$('evidence-button').setAttribute('aria-pressed',String(evidence));$('evidence-button').textContent=evidence?'收起线索':'展开线索';$('evidence-values').hidden=!evidence;renderReplay();};
-$('correct-button').onclick=()=>{const c=clips[clipIndex];corrections.push({t:replayTime,text:'本游戏不知道你为什么这样走。',eventTime:c.event?.t});const panel=$('correction');panel.hidden=false;panel.replaceChildren();const old=document.createElement('s');old.textContent=String(c.event?.text||'旁白对行动的解释');const p=document.createElement('p');p.textContent='更正：本游戏不知道你为什么这样走。';panel.append(old,p);};
+$('correct-button').onclick=()=>{const c=clips[clipIndex];const text=c.event?.reason==='reverse-reveal'?'这次倒序是我安排的。路线来自你刚才的动作，重走的方向由程序决定；我并不知道你是否想重来。':'这句话由预设条件触发。我看到了记录中的动作，但不知道你为何这样做。';corrections.push({t:replayTime,text,eventTime:c.event?.t});const panel=$('correction');panel.hidden=false;panel.textContent=`旁白补充：${text}`;};
 $('export-button').onclick=async()=>{
   if(!game)return;const button=$<HTMLButtonElement>('export-button');button.disabled=true;
   try{
