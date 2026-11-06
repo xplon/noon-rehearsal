@@ -8,13 +8,15 @@ import {SUN,SHADOW_SLOPE,SHADOW_HEIGHT} from './lighting';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { BOW, HOME, EXIT, PLANT, type Frame, type Visual, type Vec } from './engine';
+import {GATE,INNER_PAD,OUTER_PAD,PAD_RADIUS} from './space';
 
 
 import {poseRig,type Rig} from './rig-pose';
+const GATE_HEIGHT=3.82, GATE_ARCADE_HEIGHT=4.12;
 export class StageScene {
   renderer:THREE.WebGLRenderer; scene=new THREE.Scene(); camera:THREE.OrthographicCamera;
   ink:ReturnType<typeof createInkPipeline>;outlineExclusions:THREE.Object3D[]=[];
-  plantHosts:{node:THREE.Group;seed:number}[]=[];botanicals:BotanicalInstance[]=[];doorHinge=new THREE.Group();signHinge=new THREE.Group();doorRoster=new THREE.Group();rosterPips:THREE.Mesh[]=[];lastShadowUpdate=-1;
+  plantHosts:{node:THREE.Group;seed:number}[]=[];botanicals:BotanicalInstance[]=[];doorHinge=new THREE.Group();signHinge=new THREE.Group();padFaces:THREE.Mesh<THREE.CylinderGeometry,THREE.MeshBasicMaterial>[]=[];controlRing:THREE.Mesh|null=null;lastShadowUpdate=-1;
   stage=new THREE.Group(); actors=new THREE.Group(); body:Rig|null=null; shadow:Rig|null=null;
   clips:THREE.AnimationClip[]=[]; materialCache=new Map<string,THREE.MeshToonMaterial>();
   homeRing:THREE.Mesh; exitRing:THREE.Mesh; bowRing:THREE.Mesh;
@@ -39,8 +41,8 @@ export class StageScene {
     this.box(0,-.66,.1,22.4,.16,15.4,C.darkCoral,true);
     this.buildArchitecture();buildCourtyardDetails(this,C);this.buildFloor();this.buildPlanter(PLANT.x,PLANT.z,1);this.buildPlanter(6.9,-4.8,.65);
     this.buildBench(-6.6,-3.5);this.buildProps();
-    this.homeRing=this.ring(HOME.x,HOME.z,.47,C.cream);this.exitRing=this.ring(EXIT.x,EXIT.z,.63,C.mint);this.bowRing=this.ring(BOW.x,BOW.z,.6,C.mint);this.bowRing.visible=false;
-    this.door=this.buildDoor();this.outlineExclusions.push(this.overlay,this.trace);this.ink=createInkPipeline(this.renderer,this.scene,this.camera,this.outlineExclusions,C.ink);
+    this.homeRing=this.ring(HOME.x,HOME.z,.47,C.cream);this.exitRing=this.ring(EXIT.x,EXIT.z,.63,C.cream,.075);this.bowRing=this.ring(BOW.x,BOW.z,.6,C.mint);this.bowRing.visible=false;
+    this.door=this.buildDoor();this.buildRelayPads();this.controlRing=this.ring(0,0,.17,C.ink);this.controlRing.visible=false;this.outlineExclusions.push(this.overlay,this.trace);this.ink=createInkPipeline(this.renderer,this.scene,this.camera,this.outlineExclusions,C.ink);
     // Fit the whole architecture in camera space, including the tower roofs and platform.
     this.stage.updateMatrixWorld(true);
     this.stage.traverse(node=>{if(!(node instanceof THREE.Mesh))return;
@@ -75,20 +77,26 @@ export class StageScene {
   }
   buildArchitecture(){
     // Tall rear arcade, with real openings and deliberately broad wall planes.
-    this.box(0,4.1,-5.8,21,.85,1.25,C.coral);
+    // A taller entrance bay frames actors in the rear landing from the fixed
+    // camera. Its raised lintel still joins the continuous roof and side piers.
+    this.box(-4.175,4.1,-5.8,12.65,.85,1.25,C.coral);
+    this.box(8.275,4.1,-5.8,4.45,.85,1.25,C.coral);
+    this.box(GATE.x,4.465,-5.8,3.9,.17,1.25,C.coral);
     this.box(0,4.62,-5.8,21.45,.24,1.5,C.lightCoral);
     this.box(0,4.86,-5.95,21.15,.23,1.2,C.coral);
     for(const x of [-8.2,-4.1,0,4.1,8.2]){
-      this.arch(x,-5.75,2.7,3.7,.9,C.lightCoral);
-      const half=1.55;
-      this.box(x-half,1.85,-5.85,.55,3.7,1.15,C.coral);
-      this.box(x+half,1.85,-5.85,.55,3.7,1.15,C.coral);
+      const height=x===GATE.x?GATE_ARCADE_HEIGHT:3.7;
+      this.arch(x,-5.75,2.7,height,.9,C.lightCoral);
+      const half=1.55,pierHeight=x===GATE.x?4.45:3.7;
+      this.box(x-half,pierHeight/2,-5.85,.55,pierHeight,1.15,C.coral);
+      this.box(x+half,pierHeight/2,-5.85,.55,pierHeight,1.15,C.coral);
       this.box(x-half,.15,-5.8,.75,.3,1.35,C.lightCoral);
       this.box(x+half,.15,-5.8,.75,.3,1.35,C.lightCoral);
     }
     // Dusky courtyard beyond the arches, not black voids.
-    this.box(0,2.1,-7.35,21,4.2,.2,C.darkCoral,false);
-    this.box(0,.02,-6.5,21,.12,2.3,C.lightCoral);
+    this.box(0,2.1,-7.7,21,4.2,.2,C.darkCoral,false);
+    this.box(GATE.outsideLeft-.15,.42,(GATE.outsideEnd+GATE.outsideShoulder)/2,.3,.84,GATE.outsideShoulder-GATE.outsideEnd,C.coral,false);
+    this.box(0,-.06,-6.5,21,.12,2.3,C.lightCoral);
     for(let x=-9.5;x<=10;x+=.6)this.line([[x,4.72,-5.0],[x+.08,4.84,-5.0]],C.darkCoral,.20);
     // Asymmetric tower and rooftop stair silhouette.
     this.box(-6.8,6.5,-7.8,4.2,3.8,3.1,C.coral);
@@ -105,13 +113,13 @@ export class StageScene {
     }
     this.box(-9.65,4.95,.2,.65,.25,10.7,C.coral);
     // Right wing frames the exit without covering the actors.
-    this.box(10,1.2,-1,1.4,2.4,9,C.coral);
-    this.box(10,2.48,-1,1.65,.18,9.2,C.lightCoral);
-    for(let z=-4.8;z<3.5;z+=.65){this.box(10,3,z,.15,1,.17,C.lightCoral,false);}
-    this.box(10,3.55,-1,1.6,.2,9,C.coral);
-    this.box(9.8,.28,4.9,1.5,.55,1.6,C.lightCoral);
+    this.box(10.8,1.2,-1,1.4,2.4,9,C.coral);
+    this.box(10.8,2.48,-1,1.65,.18,9.2,C.lightCoral);
+    for(let z=-4.8;z<3.5;z+=.65){this.box(10.8,3,z,.15,1,.17,C.lightCoral,false);}
+    this.box(10.8,3.55,-1,1.6,.2,9,C.coral);
+    this.box(10.4,.28,4.9,1.0,.55,1.6,C.lightCoral);
     // Foreground plinths leave the central action readable.
-    for(const x of [-9.2,9.2]){
+    for(const x of [-10.3,10.3]){
       this.box(x,.35,6.2,1.1,.7,1.1,C.coral);
       this.box(x,.78,6.2,1.35,.16,1.35,C.lightCoral);
       this.cylinder(x,1.55,6.2,.28,.35,1.45,C.coral,12);
@@ -137,29 +145,45 @@ export class StageScene {
     }
   }
   buildDoor(){
-    const g=new THREE.Group();g.position.set(EXIT.x,0,-5.22);this.stage.add(g);
-    this.arch(0,0,1.8,3.0,.23,C.cream,0,g);
-    const shape=new THREE.Shape();shape.moveTo(-.85,0);shape.lineTo(.85,0);shape.lineTo(.85,1.9);shape.absarc(0,1.9,.85,0,Math.PI,false);shape.closePath();
-    this.doorHinge.position.set(-.85,0,.03);g.add(this.doorHinge);
-    const panel=new THREE.Group();panel.position.x=.85;this.doorHinge.add(panel);
-    const leaf=this.mesh(new THREE.ExtrudeGeometry(shape,{depth:.06,bevelEnabled:false,curveSegments:20}),C.green,false,panel);leaf.position.z=-.03;
-    for(let x=-.6;x<=.7;x+=.3)this.line([[x,.1,.045],[x,2.3,.045]],C.ink,.22,panel);
-    this.box(0,1,.08,.05,2,.07,C.ink,false,panel);this.cylinder(.2,1.2,.15,.065,.065,.09,C.cream,12,panel).rotation.x=Math.PI/2;
-    // Flush threshold inlay stays below the actor projection and cue rings.
-    this.box(0,.012,.6,2.3,.024,1,C.lightCoral,true,g);
-    // Two physical admission tokens emerge only after the apparent single actor splits.
-    this.doorRoster.position.set(-1.45,1.65,.22);g.add(this.doorRoster);
-    this.box(0,0,0,.43,.92,.09,C.cream,false,this.doorRoster);
-    for(const y of [.22,-.22]){
-      const pip=this.cylinder(0,y,.07,.12,.12,.035,C.ink,20,this.doorRoster);pip.rotation.x=Math.PI/2;this.rosterPips.push(pip);
+    const g=new THREE.Group();g.name='Single hinged courtyard gate';g.position.set(GATE.x,0,GATE.z);this.stage.add(g);
+    // Infill belongs to the selected arcade opening; its hole follows the cream surround.
+    const spring=GATE_HEIGHT-GATE.halfWidth,outerSpring=GATE_ARCADE_HEIGHT-1.35;
+    const infill=new THREE.Shape();infill.moveTo(-1.35,0);infill.lineTo(-1.35,outerSpring);infill.absarc(0,outerSpring,1.35,Math.PI,0,true);infill.lineTo(1.35,0);infill.lineTo(1.18,0);infill.lineTo(1.18,spring);infill.absarc(0,spring,1.18,0,Math.PI,false);infill.lineTo(-1.18,0);infill.closePath();
+    const fillGeometry=new THREE.ExtrudeGeometry(infill,{depth:.22,bevelEnabled:false,curveSegments:20});fillGeometry.translate(0,0,-.11);this.mesh(fillGeometry,C.coral,false,g);
+    this.arch(0,0,GATE.halfWidth*2,GATE_HEIGHT,GATE.frameDepth,C.cream,0,g);
+    const r=GATE.halfWidth-.025;
+    const shape=new THREE.Shape();shape.moveTo(-r,.035);shape.lineTo(r,.035);shape.lineTo(r,spring);shape.absarc(0,spring,r,0,Math.PI,false);shape.closePath();
+    this.doorHinge.position.set(GATE.halfWidth,0,0);g.add(this.doorHinge);
+    const panel=new THREE.Group();panel.position.x=-GATE.halfWidth;this.doorHinge.add(panel);
+    const leafGeometry=new THREE.ExtrudeGeometry(shape,{depth:GATE.leafThickness,bevelEnabled:false,curveSegments:20});leafGeometry.translate(0,0,-GATE.leafThickness/2);this.mesh(leafGeometry,C.green,false,panel);
+    for(let x=-.6;x<=.7;x+=.3)this.line([[x,.15,.033],[x,spring+.25,.033]],C.ink,.17,panel);
+    for(const y of [.55,1.85]){
+      this.box(.75,y,.055,.25,.085,.05,C.ink,false,panel);
+      this.cylinder(GATE.halfWidth,y,0,.055,.055,.24,C.ink,10,g);
     }
-    this.doorRoster.visible=false;
-    // A hand-built sign: simple arrow, no font in the 3D world.
-    this.signHinge.position.set(1.75,2.5,.1);g.add(this.signHinge);
+    this.box(-.68,1.2,.065,.14,.28,.05,C.ink,false,panel);
+    this.cylinder(-.68,1.2,.13,.065,.065,.09,C.cream,12,panel).rotation.x=Math.PI/2;
+    // Threshold and both landing surfaces share y=0; decoration remains below the shadow.
+    this.box(0,.008,0,GATE.halfWidth*2,.016,.32,C.lightCoral,false,g);
+    this.signHinge.position.set(1.72,2.5,.1);g.add(this.signHinge);
     this.box(0,0,0,.85,.65,.12,C.cream,false,this.signHinge);
     this.line([[-.27,0,.08],[.25,0,.08],[.07,.16,.08]],C.ink,1,this.signHinge);
     this.line([[.25,0,.08],[.07,-.16,.08]],C.ink,1,this.signHinge);
     return g;
+  }
+  buildRelayPads(){
+    // A pale stone landing distinguishes the far side from the ochre courtyard.
+    // It stays flush below the projection and makes the handoff readable through the arch.
+    this.box(GATE.x,.006,-6.3,1.72,.012,2.1,C.cream,false);
+    this.box((GATE.outsideLeft+5)/2,.006,-7.05,5-GATE.outsideLeft,.012,.62,C.cream,false);
+    for(const [index,pad] of [INNER_PAD,OUTER_PAD].entries()){
+      const rim=this.ring(pad.x,pad.z,PAD_RADIUS+.08,C.cream);rim.name=index?'Outside hold position':'Inside hold position';rim.position.y=.026;
+      const face=new THREE.Mesh(new THREE.CylinderGeometry(PAD_RADIUS-.05,PAD_RADIUS-.05,.016,48),new THREE.MeshBasicMaterial({color:C.mint}));
+      face.position.set(pad.x,.018,pad.z);this.stage.add(face);this.padFaces.push(face);
+      const center=this.ring(pad.x,pad.z,.13,C.green);center.position.y=.035;
+    }
+    this.line([[INNER_PAD.x,.023,INNER_PAD.z],[INNER_PAD.x,.023,-4.55],[GATE.x-GATE.halfWidth,.023,-4.55],[GATE.x-GATE.halfWidth,.023,GATE.z]],C.mint,.75);
+    this.line([[OUTER_PAD.x,.023,OUTER_PAD.z],[GATE.x,.023,-6.95],[GATE.x,.023,GATE.z]],C.mint,.75);
   }
   buildPlanter(x:number,z:number,scale:number){
     const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(scale);this.stage.add(g);
@@ -177,8 +201,8 @@ export class StageScene {
   buildProps(){
     // Amphora, three stones, fallen leaves and a sleeping courtyard cat.
     const v=[new THREE.Vector2(.3,0),new THREE.Vector2(.47,.3),new THREE.Vector2(.43,.75),new THREE.Vector2(.2,1),new THREE.Vector2(.2,1.2)];
-    const vase=this.mesh(new THREE.LatheGeometry(v,20),C.lightCoral);vase.position.set(8.35,0,-3.5);
-    for(const side of [-1,1]){const handle=this.mesh(new THREE.TorusGeometry(.23,.055,6,16),C.coral);handle.position.set(8.35+side*.34,.76,-3.5);}
+    const vase=this.mesh(new THREE.LatheGeometry(v,20),C.lightCoral);vase.position.set(10.1,0,-3.5);
+    for(const side of [-1,1]){const handle=this.mesh(new THREE.TorusGeometry(.23,.055,6,16),C.coral);handle.position.set(10.1+side*.34,.76,-3.5);}
     const cat=this.mesh(new THREE.SphereGeometry(.33,16,8),C.cream,false);cat.position.set(-6.7,.85,-3.4);cat.scale.set(1.6,.45,.7);
     const head=this.mesh(new THREE.SphereGeometry(.18,12,8),C.cream);head.position.set(-6.25,.92,-3.3);
     for(const x of [-6.35,-6.14]){const ear=this.mesh(new THREE.ConeGeometry(.085,.18,3),C.cream);ear.position.set(x,1.08,-3.3);}
@@ -186,7 +210,7 @@ export class StageScene {
       const leaf=this.mesh(new THREE.CircleGeometry(.09,3),C.lightCoral);leaf.rotation.x=-Math.PI/2;leaf.position.set(-5.2+Math.sin(i*4)*.9,.018,1+Math.cos(i*2)*.8);
     }
   }
-  ring(x:number,z:number,r:number,color:number){const m=new THREE.Mesh(new THREE.RingGeometry(r-.05,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.052,z);this.stage.add(m);return m;}
+  ring(x:number,z:number,r:number,color:number,width=.05){const m=new THREE.Mesh(new THREE.RingGeometry(r-width,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.052,z);this.stage.add(m);return m;}
   async load(){
     const [gltf,manifest,botanicals]=await Promise.all([new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}assets/actor.glb?v=5`),fetch(`${import.meta.env.BASE_URL}assets/actor-manifest.json?v=5`).then(r=>r.json()),Promise.all(this.plantHosts.map(({node,seed})=>addBotanical(node,{height:1.8,seed,materialFor:color=>this.material(color,'environment',THREE.DoubleSide)})))]);this.botanicals=botanicals;this.clips=gltf.animations;this.phaseOffsets=Object.fromEntries(Object.entries(manifest.clips).map(([name,clip])=>[name,(clip as {phaseOffset?:number}).phaseOffset||0]));
     const bounds=new THREE.Box3().setFromObject(gltf.scene);this.actorScale=2.07/(bounds.max.y-bounds.min.y);
@@ -247,9 +271,13 @@ export class StageScene {
     this.bowRing.visible=!!frame.cue&&!at(HOME)&&!at(EXIT);
     if(frame.cue)this.bowRing.position.set(frame.cue.x,.052,frame.cue.z);
     const motion=courtyardMotion(frame.t);
-    this.doorHinge.rotation.y=-1.4*frame.doorOpen+motion.doorAngle*(1-frame.doorOpen);
-    this.doorRoster.visible=frame.doorSlots>0;
-    this.rosterPips.forEach((pip,i)=>pip.scale.setScalar(i<frame.doorSlots?1:.35));
+    this.doorHinge.rotation.y=-GATE.maxAngle*frame.doorOpen;
+    this.padFaces.forEach((pad,i)=>{const held=i?frame.outerHeld:frame.innerHeld;pad.position.y=held?.009:.018;pad.material.color.setHex(held?C.cream:C.mint);});
+    if(this.controlRing){
+      this.controlRing.visible=!!frame.controlLabel&&['body','shadow'].includes(frame.target)&&!['curtain','ended'].includes(frame.stage);
+      const controlled=frame.target==='shadow'?frame.shadow:frame.body;
+      this.controlRing.position.set(controlled.x,.061,controlled.z);
+    }
     this.signHinge.rotation.y=Math.PI*frame.signTurn;
     for(const botanical of this.botanicals)botanical.update(frame.t,motion.wind);
     // Moving foliage and the hinged door keep their real cast shadows in step.

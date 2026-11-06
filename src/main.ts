@@ -26,8 +26,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
     <div class="scene-caption" id="scene-caption"><span class="caption-line"></span><span>正午 · 无需准时</span><span class="sun-mark">☼</span></div>
     <div id="loading" class="loading"><span class="loader-arch"></span><span>演员正在候场</span></div>
     <section id="hud" class="hud" hidden>
-      <div class="stage-strip"><span class="eyebrow" id="mode-label">一场个人试演</span><span class="stage-dots" id="stage-dots" aria-label="演出进行中">● <i>·</i> · <i>·</i> ·</span><button id="pause-button" class="text-button">Ⅱ 暂停</button></div>
-      <div id="subtitle" class="subtitle" role="status" aria-live="polite"></div><button id="action-button" class="stage-action" hidden><span id="action-label"></span><small>空格 / 点击</small></button>
+      <div class="stage-strip"><span class="eyebrow" id="mode-label">一场个人试演</span><div class="stage-tools"><button id="hint-button" class="text-button" aria-expanded="false" aria-controls="hint-panel">刚才的提示</button><button id="pause-button" class="text-button">Ⅱ 暂停</button></div></div>
+      <div class="current-invitation" aria-label="当前行动"><span id="control-label" class="control-label" hidden></span><span id="objective"></span></div>
+      <div id="subtitle" class="subtitle" role="status" aria-live="polite"></div><div id="stage-actions" class="stage-actions" role="group" aria-label="现在可以做的动作" hidden></div>
       <div class="control-bar"><div class="keys" aria-label="当前输入"><kbd data-key="up">↑</kbd><div><kbd data-key="left">←</kbd><kbd data-key="down">↓</kbd><kbd data-key="right">→</kbd></div></div><p>方向键 / WASD<span>随时可以停下来</span></p><button id="host-button" class="text-button">演出控制 <span>⌄</span></button></div>
       <div id="host-controls" class="host-controls" hidden><span>这些操作会写入本局记录</span><button id="skip-button">跳过这一段</button><button id="end-button">提前落幕</button></div>
     </section>
@@ -39,7 +40,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
       <div id="replay-subtitle" class="replay-subtitle"></div>
       <div class="review-bottom"><div class="transport"><button id="replay-play" aria-label="播放片段">▷</button><span id="replay-time">00:00</span><input id="timeline" type="range" min="0" max="1" value="0" step="0.033" aria-label="回看时间"><span id="replay-end">00:00</span><button id="evidence-button" aria-pressed="false">展开线索</button></div><div class="analysis-card"><div><span class="eyebrow" id="clip-concept"></span><h3 id="clip-question"></h3><p id="clip-fact"></p><p id="clip-quote" class="clip-quote" hidden></p></div><div class="evidence-values" id="evidence-values" hidden></div></div><div id="correction" class="correction" hidden></div><div class="review-actions"><button id="correct-button">旁白，说明你的安排。</button><button id="export-button">保存本局记录 ↓</button><button id="new-button">重新入场 ↗</button></div></div>
     </section>
-    <section id="pause-panel" class="pause-panel" hidden><p class="eyebrow">幕间 / INTERMISSION</p><h2>庭院会等你。</h2><p>演出时间已暂停。</p><button id="resume-button" class="primary"><span>继续这一场</span><span>→</span></button><button id="leave-button" class="text-button">结束这一场</button></section>
+    <section id="pause-panel" class="pause-panel" aria-label="演出已暂停" hidden><p class="eyebrow">幕间 / INTERMISSION</p><h2>庭院会等你。</h2><p>时间已暂停。<br>可以慢慢看清舞台和当前提示。</p><button id="resume-button" class="primary"><span>继续这一场</span><span>→</span></button><button id="leave-button" class="text-button">结束这一场</button></section>
+    <section id="hint-panel" class="hint-panel" aria-label="提示回顾" tabindex="-1" hidden><div class="hint-heading"><h2>刚才的提示</h2><button id="hint-close" class="text-button">收起</button></div><p class="hint-paused">演出已暂停，可以慢慢看。</p><p id="current-help" class="current-help"></p><ol id="hint-history" aria-label="最近实际出现的旁白"></ol><button id="hint-return" class="primary"><span>回到演出</span><span>→</span></button></section>
   </main>
   <footer class="footer"><span>一个关于行动与观看的互动作品</span><span class="footer-center">EST. AT NOON <span>✳</span></span><button id="share-button" class="text-button">邀请另一个人入场 ↗</button></footer>
 </div>
@@ -54,23 +56,66 @@ let game:Game|null=null,view:'lobby'|'play'|'ending'|'review'='lobby',mode:Mode=
 let clips:Clip[]=[],clipIndex=0,replayTime=0,replayPlaying=false,evidence=false;
 let corrections:{t:number;text:string;eventTime?:number}[]=[];
 const keys=new Set<string>();let stick={x:0,y:0};let accumulator=0,last=performance.now(),lobbyTime=0,ready=false,toastTimer=0;
+let helpOpen=false,helpOwnPause=false,actionSignature='',historySignature='';
 const lobbyGame=new Game();let previousTick:Frame|null=null;
 const time=(t:number)=>`${String(Math.floor(t/60)).padStart(2,'0')}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+function setText(id:string,text:string){const element=$(id);if(element.textContent!==text)element.textContent=text;}
 function toast(message:string){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=window.setTimeout(()=>$('toast').classList.remove('visible'),3500);}
 function screen(next:typeof view){
   view=next;theatre.dataset.screen=next;$('lobby').hidden=next!=='lobby';$('hud').hidden=next!=='play';$('ending').hidden=next!=='ending';$('review').hidden=next!=='review';$('joystick').hidden=next!=='play';$('scene-caption').hidden=next!=='lobby';
-  $('pause-panel').hidden=true;$('host-controls').hidden=true;requestAnimationFrame(()=>scene.resize());
+  $('pause-panel').hidden=true;$('host-controls').hidden=true;$('hint-panel').hidden=true;helpOpen=false;helpOwnPause=false;theatre.dataset.paused='false';$('hint-button').setAttribute('aria-expanded','false');requestAnimationFrame(()=>scene.resize());
 }
 function start(){
   if(!ready)return;mode=document.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value as Mode;
   game=new Game(mode,scene.stride,scene.runStride);previousTick=null;corrections=[];keys.clear();stick={x:0,y:0};accumulator=0;replayPlaying=false;evidence=false;
-  $('mode-label').textContent=mode==='teacher'?'一场剧场演出':'一场个人试演';$('host-button').hidden=mode==='student';scene.setEvidence(game.snapshot(),[],false);$('action-button').hidden=true;screen('play');sound.resetAmbience();
+  $('mode-label').textContent=mode==='teacher'?'一场剧场演出':'一场个人试演';$('host-button').hidden=mode==='student';scene.setEvidence(game.snapshot(),[],false);actionSignature='';historySignature='';screen('play');renderHud(game.snapshot());sound.resetAmbience();
   document.title='庭院试演 · 正午排练场';scene.apply(game.snapshot());game.frames[0].visual=scene.capture();sound.chime();
 }
 function pause(reason='manual'){
-  if(view!=='play'||!game||game.stage==='ended')return;game.pause(reason);keys.clear();resetStick();$('pause-panel').hidden=false;
+  if(view!=='play'||!game||game.stage==='ended')return;game.pause(reason);keys.clear();resetStick();$('pause-panel').hidden=helpOpen;$('host-controls').hidden=true;renderHud(game.snapshot());
 }
-function resume(){if(!game)return;game.resume();last=performance.now();accumulator=0;$('pause-panel').hidden=true;}
+function resume(){if(!game)return;game.resume();last=performance.now();accumulator=0;helpOpen=false;helpOwnPause=false;$('pause-panel').hidden=true;$('hint-panel').hidden=true;$('hint-button').setAttribute('aria-expanded','false');renderHud(game.snapshot());$('scene').tabIndex=-1;$('scene').focus({preventScroll:true});}
+function renderHud(frame:Frame){
+  setText('objective',frame.objective);
+  setText('control-label',frame.controlLabel);$('control-label').hidden=!frame.controlLabel;
+  setText('subtitle',frame.line);$('subtitle').classList.toggle('empty',!frame.line);
+  theatre.dataset.paused=String(Boolean(game?.paused));
+  setText('pause-button',game?.paused?'▷ 继续':'Ⅱ 暂停');
+  const signature=JSON.stringify(frame.actions);
+  if(signature!==actionSignature){
+    actionSignature=signature;const container=$('stage-actions');container.replaceChildren();
+    frame.actions.forEach((action,index)=>{
+      const button=document.createElement('button');button.type='button';button.className='stage-action';button.dataset.action=action.id;
+      const label=document.createElement('span');label.textContent=action.label;button.append(label);
+      if(index===0){button.classList.add('primary-action');const shortcut=document.createElement('small');shortcut.textContent='空格 / 点击';button.append(shortcut);}
+      button.onclick=()=>chooseAction(action.id);container.append(button);
+    });
+  }
+  $('stage-actions').hidden=!frame.actions.length;
+  $('stage-actions').querySelectorAll<HTMLButtonElement>('button').forEach(button=>button.disabled=Boolean(game?.paused));
+  $<HTMLButtonElement>('host-button').disabled=Boolean(game?.paused);
+  $('joystick').setAttribute('aria-disabled',String(Boolean(game?.paused)));
+  if(helpOpen)renderHints(frame);
+}
+function chooseAction(id?:string){
+  if(view!=='play'||!game||game.paused)return;
+  const current=game.snapshot().actions;const action=id?current.find(choice=>choice.id===id):current[0];
+  if(!action){renderHud(game.snapshot());return;}
+  game.choose(action.id);renderHud(game.snapshot());
+}
+function renderHints(frame:Frame){
+  $('current-help').textContent=frame.help||frame.objective;
+  const lines=game?.events.filter(event=>event.type==='narration'&&typeof event.text==='string').slice(-5).map(event=>String(event.text))??[];
+  const signature=JSON.stringify(lines);if(signature===historySignature)return;historySignature=signature;
+  const list=$('hint-history');list.replaceChildren();
+  for(const line of lines){const item=document.createElement('li');item.textContent=line;list.append(item);}
+  list.hidden=!lines.length;
+}
+function toggleHints(open=!helpOpen){
+  if(view!=='play'||!game)return;
+  if(open){helpOwnPause=!game.paused;helpOpen=true;pause('hint-history');$('hint-panel').hidden=false;$('pause-panel').hidden=true;$('hint-button').setAttribute('aria-expanded','true');renderHints(game.snapshot());$('hint-panel').focus({preventScroll:true});}
+  else{const restore=helpOwnPause;helpOpen=false;helpOwnPause=false;$('hint-panel').hidden=true;$('hint-button').setAttribute('aria-expanded','false');if(restore)resume();else{$('pause-panel').hidden=!game.paused;$('hint-button').focus({preventScroll:true});}}
+}
 const portraitPhone=matchMedia('(max-width:700px) and (orientation:portrait)');
 function syncOrientation(){
   theatre.inert=portraitPhone.matches;$('rotation-guide').hidden=!portraitPhone.matches;
@@ -121,8 +166,7 @@ function animate(now:number){
         const count=game.frames.length;previousTick=game.snapshot();game.step(1/60);accumulator-=1/60;
         if(game.frames.length>count){const frame=game.frames.at(-1)!;scene.apply(frame);frame.visual=scene.capture();}
       }
-      const rendered=game.snapshot();if(previousTick){const alpha=accumulator*60;rendered.body=mixActor(previousTick.body,rendered.body,alpha);rendered.shadow=mixActor(previousTick.shadow,rendered.shadow,alpha);}scene.apply(rendered);$('subtitle').textContent=game.line;$('subtitle').classList.toggle('empty',!game.line);
-      const action=game.actionLabel();$('action-button').hidden=!action;$('action-label').textContent=action;
+      const rendered=game.snapshot();if(previousTick){const alpha=accumulator*60;rendered.body=mixActor(previousTick.body,rendered.body,alpha);rendered.shadow=mixActor(previousTick.shadow,rendered.shadow,alpha);}scene.apply(rendered);renderHud(rendered);
       sound.step(game.body.gaitPhase,game.body.animation==='walk'||game.body.animation==='chase');
       sound.ambience(game.time);
       if(game.stage==='ended')endReveal();
@@ -139,9 +183,9 @@ try{
   scene.load().then(()=>{ready=true;$('loading').hidden=true;$<HTMLButtonElement>('start-button').disabled=false;$('start-button').innerHTML='<span>入场</span><span aria-hidden="true">→</span>';}).catch(error=>{console.error(error);$('loading').innerHTML='<p>演员还没准备好。<br>请刷新页面，再试一次。</p>';});
 }catch(error){console.error(error);$('loading').innerHTML='<p>这个浏览器暂时无法开启三维舞台。<br>请使用支持 WebGL2 的浏览器重新进入。</p>';}
 requestAnimationFrame(animate);
-$('action-button').onclick=()=>game?.interact();
 $('start-button').onclick=start;$('again-button').onclick=start;$('review-button').onclick=review;
-$('pause-button').onclick=()=>pause();$('resume-button').onclick=resume;
+$('pause-button').onclick=()=>game?.paused?resume():pause();$('resume-button').onclick=resume;
+$('hint-button').onclick=()=>toggleHints();$('hint-close').onclick=()=>toggleHints(false);$('hint-return').onclick=resume;
 $('host-button').onclick=()=>{$('host-controls').hidden=!$('host-controls').hidden;};
 $('skip-button').onclick=()=>{game?.skip();$('host-controls').hidden=true;};
 $('end-button').onclick=()=>{game?.finish('host-ended');$('host-controls').hidden=true;};
@@ -151,7 +195,7 @@ $('home-link').onclick=e=>{e.preventDefault();if(view==='play'){pause();return;}
 $('replay-play').onclick=()=>{if(replayTime>=clips[clipIndex].end)replayTime=clips[clipIndex].start;replayPlaying=!replayPlaying;$('replay-play').textContent=replayPlaying?'Ⅱ':'▷';};
 $<HTMLInputElement>('timeline').oninput=e=>{replayTime=Number((e.target as HTMLInputElement).value);replayPlaying=false;$('replay-play').textContent='▷';renderReplay();};
 $('evidence-button').onclick=()=>{evidence=!evidence;$('evidence-button').setAttribute('aria-pressed',String(evidence));$('evidence-button').textContent=evidence?'收起线索':'展开线索';$('evidence-values').hidden=!evidence;renderReplay();};
-$('correct-button').onclick=()=>{const c=clips[clipIndex];const text=c.event?.reason==='reverse-reveal'?'这次倒序是我安排的。路线来自你刚才的动作，重走的方向由程序决定；我并不知道你是否想重来。':'这句话由预设条件触发。我看到了记录中的动作，但不知道你为何这样做。';corrections.push({t:replayTime,text,eventTime:c.event?.t});const panel=$('correction');panel.hidden=false;panel.textContent=`旁白补充：${text}`;};
+$('correct-button').onclick=()=>{const c=clips[clipIndex];const text=c.event?.reason==='reverse-reveal'?'路线来自本局，反向重走的速度由程序重新安排。接受或中断会被记录，但这些选择并不说明你的理由。':'这句话由预设条件触发。我看到了记录中的动作，但不知道你为何这样做。';corrections.push({t:replayTime,text,eventTime:c.event?.t});const panel=$('correction');panel.hidden=false;panel.textContent=`旁白补充：${text}`;};
 $('export-button').onclick=async()=>{
   if(!game)return;const button=$<HTMLButtonElement>('export-button');button.disabled=true;
   try{
@@ -170,8 +214,8 @@ $('share-button').onclick=async()=>{openDialog('share-dialog');const url=new URL
 $('copy-button').onclick=async()=>{try{await navigator.clipboard.writeText(location.href.split(/[?#]/)[0]);toast('入场链接已复制');}catch{toast('可直接复制浏览器地址分享');}};
 window.addEventListener('keydown',e=>{
   if((e.target as HTMLElement).matches('input,textarea')||document.querySelector('dialog[open]'))return;
-  if(e.code==='Space'&&view==='play'&&!game?.paused){e.preventDefault();if(!e.repeat)game?.interact();return;}
-  const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)&&view==='play'){e.preventDefault();keys.add(k);}
+  if(e.code==='Space'&&view==='play'&&!game?.paused){if((e.target as HTMLElement).closest('button'))return;e.preventDefault();if(!e.repeat)chooseAction();return;}
+  const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)&&view==='play'&&!game?.paused){e.preventDefault();keys.add(k);}
   if(k==='escape'&&view==='play'){if(game?.paused)resume();else pause();}
 });
 window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
@@ -180,7 +224,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){if(view===
 const joystick=$('joystick'),knob=joystick.querySelector<HTMLElement>('.joystick-knob')!;let pointer:number|null=null;
 function resetStick(){pointer=null;stick={x:0,y:0};knob.style.transform='translate(-50%,-50%)';}
 function stickMove(e:PointerEvent){const r=joystick.getBoundingClientRect(),x=(e.clientX-r.left-r.width/2)/38,y=(e.clientY-r.top-r.height/2)/38,n=Math.max(1,Math.hypot(x,y));stick={x:x/n,y:y/n};knob.style.transform=`translate(calc(-50% + ${stick.x*32}px),calc(-50% + ${stick.y*32}px))`;}
-joystick.onpointerdown=e=>{pointer=e.pointerId;joystick.setPointerCapture(e.pointerId);stickMove(e);};joystick.onpointermove=e=>{if(e.pointerId===pointer)stickMove(e);};joystick.onpointerup=resetStick;joystick.onpointercancel=resetStick;joystick.onlostpointercapture=resetStick;
+joystick.onpointerdown=e=>{if(game?.paused)return;pointer=e.pointerId;joystick.setPointerCapture(e.pointerId);stickMove(e);};joystick.onpointermove=e=>{if(!game?.paused&&e.pointerId===pointer)stickMove(e);};joystick.onpointerup=resetStick;joystick.onpointercancel=resetStick;joystick.onlostpointercapture=resetStick;
 
 // Minimal read-only diagnostics for QA; never offers a way to manufacture a recorded session.
 Object.defineProperty(window,'noonDebug',{get:()=>({view,ready,stage:game?.stage,time:game?.time,paused:game?.paused,frames:game?.frames.length,events:game?.events.length,triangles:scene?.renderer.info.render.triangles,drawCalls:scene?.renderer.info.render.calls})});

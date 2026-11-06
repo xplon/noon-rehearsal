@@ -6,30 +6,33 @@ export function makeClips(frames:Frame[],events:Event[]):Clip[]{
   const stage=(name:string)=>events.find(e=>e.type==='stage'&&e.stage===name)?.t;
   const clip=(name:string,eyebrow:string,time:number,question:string,fact:string,event?:Event):Clip=>({name,eyebrow,start:Math.max(0,time-2),end:Math.min(duration,time+10),question,fact,event});
   const target=events.find(e=>e.type==='target-entered');
-  const a=clip('第一条指令','01 / 行动',target?.t??Math.min(12,duration/3),'你当时想做什么？程序实际知道多少？',target?'记录到进入门口区域；无法据此判断动机。':'这一局没有记录到进入门口区域。未完成不等于拒绝。',target);
-  const t2=events.find(e=>e.type==='echo-playback-start')?.t??stage('echo');
+  const first=clip('第一条指令','01 / 行动',target?.t??Math.min(12,duration/3),'你当时想做什么？程序实际知道多少？',target?'记录到身体进入门前区域；无法据此判断动机。':'这一局没有记录到进入门前区域。未完成不等于拒绝。',target);
+  const echo=events.find(e=>e.type==='echo-playback-start');
   const demo=events.some(e=>e.type==='system-demo');
-  const consequence=events.find(e=>e.type==='memory-reaction')??events.find(e=>e.type==='door-held')??events.find(e=>e.type==='body-led');
-  const departure=events.find(e=>e.type==='relationship'&&['shadow-crossed-threshold','partner-called','returned-to-partner'].includes(String(e.reason)));
-  const chosen=departure?.reason==='shadow-crossed-threshold'?'影子先跨过门槛。':departure?'你召回或走近搭档。':'本局没有明确选择先走或召回，不能记作玩家同意。';
-  const reaction=consequence?.type==='door-held'?'身体实际走到门边留门。':consequence?.type==='body-led'?'身体随后主动领路。':consequence?.reaction==='checks-before-holding-door'?'身体先确认搭档的位置，再准备留门。':consequence?.reaction==='waits-at-last-threshold'?'身体在最后离场前停下来确认搭档。':consequence?'身体在最后离场前向搭档伸手。':'';
-  // Only displayed lines with actual recorded frames are eligible. Event existence
-  // alone is not proof that a viewer could have seen or can replay the sentence.
+  const handoff=events.find(e=>e.type==='relay-handoff');
+  const choice=handoff?[...events].reverse().find(e=>e.type==='relay-choice'&&e.t<=handoff.t):events.find(e=>e.type==='relay-choice');
+  const ending=events.find(e=>e.type==='ending');
+  const closeChoice=[...events].reverse().find(e=>e.type==='interaction'&&['stay','end-unfinished'].includes(String(e.action)));
+  const chosen=choice?.source==='player'?(choice.order==='body-first'?'你选择身体先过。':'你选择影子先过。'):choice?'没有明确先后选择；影子留门是系统示范。':closeChoice?'':'没有记录到先后选择。';
+  const result=handoff?(handoff.holder==='body'?'身体随后在门外踩住踏板，接过留门的位置。':'影子随后在门外踩住踏板，接过留门的位置。'):ending?.memory&&((ending.memory as Record<string,string>).door==='declined')?'你明确选择留在庭院。':closeChoice?'你明确结束了尚未完成的接力。':'这次没有完成接手，不能说你拒绝了合作。';
+  const relationEvent=closeChoice??choice;
+  const consequence=closeChoice?events.find(e=>e.type==='curtain-ready'&&e.t>=closeChoice.t):handoff;
+  const relationship=stage('relay')!==undefined||closeChoice?clip('选择与接应','03 / 行动与关系',relationEvent?.t??stage('relay')!,'选择怎样改变了谁等候、谁接手，或在哪里收场？',chosen+result+' 记录不能说明选择的心理原因。',relationEvent??handoff):undefined;
+  if(relationship&&relationEvent){relationship.start=Math.max(0,relationEvent.t-.25);relationship.end=Math.min(duration,(consequence?.t??relationEvent.t)+6);}
   const displayed=events.filter((event,index)=>{
     if(event.type!=='narration')return false;
-    const first=frames.find(f=>f.lineId===index);if(!first)return false;
+    const frame=frames.find(f=>f.lineId===index);if(!frame)return false;
     const end=events.find(e=>e.type==='narration-end'&&e.lineId===index);
     return Number(end?.duration??duration-event.t)>=2.4;
   });
-  const interpretation=displayed.find(e=>e.interpretation===true);
-  const narration=interpretation??displayed.find(e=>String(e.reason).startsWith('outcome-'))??displayed[0];
-  const result=[a,
-    ...(t2!==undefined?[clip('熟悉的动作','02 / 具身性',t2,'动作出自刚才的你，但此刻是谁在操作？',demo?'有效路线不足，身体执行明确标记的系统代演。':'身体播放本局记录的旧路线，当前输入交给影子。')]:[]),
-    ...(consequence?[clip('后来记住了什么','03 / 行动与关系',consequence.t,'前面的选择，怎样改变了这次接应？',chosen+reaction+' 这是行为条件，不是性格或心理判断。',consequence)]:stage('follow')!==undefined?[clip('谁带着谁走','03 / 审美距离',stage('follow')!,'亲手操作与观看搭档行动，有什么不同？','这段中你直接操作影子，通过影子间接影响身体。')]:[]),
-    ...(narration?[clip('旁白的安排','04 / 反身性',narration.t,'这句原话说了什么？谁安排了它后面的动作？',interpretation?'这次倒序由旁白的纠正引出，执行的是本局实际路线；它不代表程序知道玩家的意思。':'本局没有触发可回看的解释性调侃。这里保留实际出现的台词，不另造一次误读。',narration)]:[])
+  const narration=displayed.find(e=>e.reason==='reverse-reveal')??displayed.find(e=>e.reason==='relay-rule')??displayed.find(e=>e.reason==='guide-assistance')??displayed[0];
+  const clips=[first,
+    ...(echo?[clip('熟悉的动作','02 / 具身性',echo.t,'动作来自哪一段过去？当前输入又给了谁？',demo?'本局有效路线不足，身体执行明确标记的系统示范。':'身体沿所选真实片段重演；首尾平滑衔接，中段保留原时序与停顿；当前输入交给影子。',echo)]:[]),
+    ...(relationship?[relationship]:stage('follow')!==undefined?[clip('谁带着谁走','03 / 审美距离',stage('follow')!,'亲手操作与观看搭档行动，有什么不同？','你直接操作影子，通过影子间接影响身体。')]:[]),
+    ...(narration?[clip('旁白的安排','04 / 反身性',narration.t,'这句原话对应什么安排？哪些来自你的选择？',narration.reason==='reverse-reveal'?'玩家接受了沿真实路径反向重走；速度由程序重新安排，玩家仍可叫停。接受不代表程序知道其理由。':'保留实际台词与触发条件，区分玩家选择、角色动作和系统协助。',narration)]:[])
   ];
-  const last=result.at(-1);if(narration&&last){last.quote=String(narration.text);const id=events.indexOf(narration);const first=frames.find(f=>f.lineId===id)!;last.start=first.t;}
-  return result;
+  const last=clips.at(-1);if(narration&&last){last.quote=String(narration.text);const id=events.indexOf(narration);last.start=frames.find(f=>f.lineId===id)!.t;}
+  return clips;
 }
 export function replayFrame(frames:Frame[],t:number):Frame{
   const f=frameAt(frames,t);
