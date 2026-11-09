@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {SUN} from './lighting';
+import {WALLS,PLANT_MARK,SECOND_PLANT,BENCH} from './space';
 
 /** Scene swatches stay separate from the painted lighting ramp below. */
 export const STAGE_COLORS={
@@ -79,17 +80,12 @@ const fragmentDeclarations=/* glsl */`
     if(floorMask<.001)return 0.0;
     vec2 p=position.xz;
     float contact=0.0;
-    // Individual arcade piers preserve light passing through the arch openings.
-    for(int i=0;i<5;i++){
-      float center=-8.2+float(i)*4.1;
-      contact=max(contact,stageContactFalloff(stageBoxDistance(p,vec2(center-1.55,-5.85),vec2(.275,.575)),.35));
-      contact=max(contact,stageContactFalloff(stageBoxDistance(p,vec2(center+1.55,-5.85),vec2(.275,.575)),.35));
-    }
-    contact=max(contact,stageContactFalloff(length(p-vec2(-5.8,.1))-.48,.36));
-    contact=max(contact,stageContactFalloff(length(p-vec2(6.9,-4.8))-.312,.27));
-    contact=max(contact,stageContactFalloff(stageBoxDistance(p,vec2(-7.4,-3.5),vec2(.125,.275)),.28));
-    contact=max(contact,stageContactFalloff(stageBoxDistance(p,vec2(-5.8,-3.5),vec2(.125,.275)),.28));
-    contact=max(contact,stageContactFalloff(length(p-vec2(8.35,-3.5))-.3,.27));
+    // Contact pigment follows the same masonry footprint as feet and rendering.
+    ${WALLS.map(r=>`contact=max(contact,stageContactFalloff(stageBoxDistance(p,vec2(${(r.left+r.right)/2},${(r.top+r.bottom)/2}),vec2(${(r.right-r.left)/2},${(r.bottom-r.top)/2})),.22));`).join('\n')}
+    contact=max(contact,stageContactFalloff(length(p-vec2(${PLANT_MARK.x},${PLANT_MARK.z}))-.48,.36));
+    contact=max(contact,stageContactFalloff(length(p-vec2(${SECOND_PLANT.x},${SECOND_PLANT.z}))-.312,.27));
+    contact=max(contact,stageContactFalloff(stageBoxDistance(p,vec2(${BENCH.x-.8},${BENCH.z}),vec2(.125,.275)),.28));
+    contact=max(contact,stageContactFalloff(stageBoxDistance(p,vec2(${BENCH.x+.8},${BENCH.z}),vec2(.125,.275)),.28));
     return floorMask*contact;
   }
 `;
@@ -159,6 +155,6 @@ export function createStageMaterial(color:number,role:StageSurfaceRole='environm
       #include <opaque_fragment>
     `);
   };
-  material.customProgramCacheKey=()=>`noon-painted-stage-v1-${role}`;
+  material.customProgramCacheKey=()=>`noon-painted-stage-v2-${role}`;
   return material;
 }

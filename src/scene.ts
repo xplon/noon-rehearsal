@@ -4,19 +4,21 @@ import {STAGE_COLORS as C,createStageMaterial,type StageSurfaceRole} from './sta
 import {createInkPipeline} from './ink-outline';
 import {courtyardMotion} from './environment-motion';
 import {addBotanical,type BotanicalInstance} from './botanical-assets';
-import {SUN,SHADOW_SLOPE,SHADOW_HEIGHT} from './lighting';
+import {SUN} from './lighting';
+import {installGroundProjection} from './ground-projection';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { BOW, HOME, EXIT, PLANT, type Frame, type Visual, type Vec } from './engine';
-import {GATE,INNER_PAD,OUTER_PAD,PAD_RADIUS} from './space';
+import { BOW, HOME, EXIT, type Frame, type Visual, type Vec } from './engine';
+import {GATE,WORLD_BOUNDS as B,EXIT_ROUTE,INNER_PAD,OUTER_PAD,PAD_RADIUS,PLANT_MARK,SECOND_PLANT,BENCH} from './space';
 
 
 import {poseRig,type Rig} from './rig-pose';
-const GATE_HEIGHT=3.82, GATE_ARCADE_HEIGHT=4.12;
+const GATE_HEIGHT=3.35;
 export class StageScene {
   renderer:THREE.WebGLRenderer; scene=new THREE.Scene(); camera:THREE.OrthographicCamera;
   ink:ReturnType<typeof createInkPipeline>;outlineExclusions:THREE.Object3D[]=[];
-  plantHosts:{node:THREE.Group;seed:number}[]=[];botanicals:BotanicalInstance[]=[];doorHinge=new THREE.Group();signHinge=new THREE.Group();padFaces:THREE.Mesh<THREE.CylinderGeometry,THREE.MeshBasicMaterial>[]=[];controlRing:THREE.Mesh|null=null;lastShadowUpdate=-1;
+  plantHosts:{node:THREE.Group;seed:number}[]=[];botanicals:BotanicalInstance[]=[];doorSlide=new THREE.Group();counterweight=new THREE.Group();signHinge=new THREE.Group();padFaces:THREE.Mesh<THREE.CylinderGeometry,THREE.MeshBasicMaterial>[]=[];controlRing:THREE.Mesh|null=null;lastShadowUpdate=-1;
+  projectionFoot={value:new THREE.Vector2()};projectionDoor={value:0};
   stage=new THREE.Group(); actors=new THREE.Group(); body:Rig|null=null; shadow:Rig|null=null;
   clips:THREE.AnimationClip[]=[]; materialCache=new Map<string,THREE.MeshToonMaterial>();
   homeRing:THREE.Mesh; exitRing:THREE.Mesh; bowRing:THREE.Mesh;
@@ -32,17 +34,20 @@ export class StageScene {
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate=false;this.renderer.shadowMap.needsUpdate=true;
     this.renderer.domElement.setAttribute('aria-label','正午庭院，固定镜头的三维互动舞台');this.host.append(this.renderer.domElement);
-    this.camera=new THREE.OrthographicCamera(-13,13,8,-8,.1,100);this.camera.position.set(12,19,26);this.camera.lookAt(0,1,-.5);
+    this.camera=new THREE.OrthographicCamera(-13,13,8,-8,.1,100);this.camera.position.set(-10,34,28);this.camera.lookAt(1.2,.5,0);
     const ambient=new THREE.AmbientLight(0xfff3dc,1.6);this.scene.add(ambient);
     const sun=new THREE.DirectionalLight(0xffedc4,2.5);sun.position.set(SUN.x,SUN.y,SUN.z);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
     Object.assign(sun.shadow.camera,{left:-17,right:17,top:16,bottom:-15,near:.1,far:60});sun.shadow.bias=-.00025;sun.shadow.normalBias=.035;
     this.scene.add(sun);this.scene.add(this.stage,this.actors,this.overlay,this.trace);
-    this.floor=this.box(0,-.3,0,22,.6,15,C.sand,true);this.floor.receiveShadow=true;
-    this.box(0,-.66,.1,22.4,.16,15.4,C.darkCoral,true);
-    this.buildArchitecture();buildCourtyardDetails(this,C);this.buildFloor();this.buildPlanter(PLANT.x,PLANT.z,1);this.buildPlanter(6.9,-4.8,.65);
-    this.buildBench(-6.6,-3.5);this.buildProps();
-    this.homeRing=this.ring(HOME.x,HOME.z,.47,C.cream);this.exitRing=this.ring(EXIT.x,EXIT.z,.63,C.cream,.075);this.bowRing=this.ring(BOW.x,BOW.z,.6,C.mint);this.bowRing.visible=false;
-    this.door=this.buildDoor();this.buildRelayPads();this.controlRing=this.ring(0,0,.17,C.ink);this.controlRing.visible=false;this.outlineExclusions.push(this.overlay,this.trace);this.ink=createInkPipeline(this.renderer,this.scene,this.camera,this.outlineExclusions,C.ink);
+    this.floor=this.box((B.left+GATE.x)/2,-.26,0,GATE.x-B.left,.52,B.bottom-B.top,C.sand);
+    this.box((GATE.x+B.right)/2,-.26,0,B.right-GATE.x,.52,B.bottom-B.top,C.cream);
+    this.box((B.right+EXIT_ROUTE.end)/2,-.26,GATE.z,EXIT_ROUTE.end-B.right,.52,EXIT_ROUTE.bottom-EXIT_ROUTE.top,C.cream);
+    this.box((B.left+B.right)/2,-.58,0,B.right-B.left+.64,.14,B.bottom-B.top+.64,C.darkCoral);
+    this.box((B.right+EXIT_ROUTE.end)/2,-.58,GATE.z,EXIT_ROUTE.end-B.right,.14,EXIT_ROUTE.bottom-EXIT_ROUTE.top+.60,C.darkCoral);
+    this.buildArchitecture();buildCourtyardDetails(this,C);this.buildFloor();this.buildPlanter(PLANT_MARK.x,PLANT_MARK.z,1);this.buildPlanter(SECOND_PLANT.x,SECOND_PLANT.z,.65);
+    this.buildBench(BENCH.x,BENCH.z);this.buildProps();
+    this.homeRing=this.ring(HOME.x,HOME.z,.47,C.cream);this.exitRing=this.ring(EXIT.x,EXIT.z,.63,C.cream,.075);this.bowRing=this.ring(BOW.x,BOW.z,.6,C.mint);this.homeRing.visible=false;this.exitRing.visible=false;this.bowRing.visible=false;
+    this.door=this.buildDoor();this.buildRelayPads();this.controlRing=this.ring(0,0,.29,C.cream,.04);this.controlRing.visible=false;this.outlineExclusions.push(this.overlay,this.trace);this.ink=createInkPipeline(this.renderer,this.scene,this.camera,this.outlineExclusions,C.ink);
     // Fit the whole architecture in camera space, including the tower roofs and platform.
     this.stage.updateMatrixWorld(true);
     this.stage.traverse(node=>{if(!(node instanceof THREE.Mesh))return;
@@ -76,114 +81,97 @@ export class StageScene {
     return g;
   }
   buildArchitecture(){
-    // Tall rear arcade, with real openings and deliberately broad wall planes.
-    // A taller entrance bay frames actors in the rear landing from the fixed
-    // camera. Its raised lintel still joins the continuous roof and side piers.
-    this.box(-4.175,4.1,-5.8,12.65,.85,1.25,C.coral);
-    this.box(8.275,4.1,-5.8,4.45,.85,1.25,C.coral);
-    this.box(GATE.x,4.465,-5.8,3.9,.17,1.25,C.coral);
-    this.box(0,4.62,-5.8,21.45,.24,1.5,C.lightCoral);
-    this.box(0,4.86,-5.95,21.15,.23,1.2,C.coral);
-    for(const x of [-8.2,-4.1,0,4.1,8.2]){
-      const height=x===GATE.x?GATE_ARCADE_HEIGHT:3.7;
-      this.arch(x,-5.75,2.7,height,.9,C.lightCoral);
-      const half=1.55,pierHeight=x===GATE.x?4.45:3.7;
-      this.box(x-half,pierHeight/2,-5.85,.55,pierHeight,1.15,C.coral);
-      this.box(x+half,pierHeight/2,-5.85,.55,pierHeight,1.15,C.coral);
-      this.box(x-half,.15,-5.8,.75,.3,1.35,C.lightCoral);
-      this.box(x+half,.15,-5.8,.75,.3,1.35,C.lightCoral);
+    // The rear elevations are closed buildings with raised, shuttered windows.
+    // No decorative opening offers a false route around the separating wall.
+    this.box(.5,1.35,B.top-.15,19.6,2.7,.30,C.coral);
+    this.box(.5,2.77,B.top-.15,19.8,.15,.46,C.lightCoral);
+    this.box(B.left-.15,.65,0,.30,1.3,8.7,C.coral);
+    this.box(B.left-.15,1.34,0,.43,.08,8.7,C.cream);
+    this.box(.5,.25,B.bottom+.15,19.6,.5,.30,C.coral);
+    this.box(.5,.54,B.bottom+.15,19.8,.08,.43,C.lightCoral);
+    // A visible break in the right parapet leads into the departure street.
+    for(const [top,bottom] of [[B.top,EXIT_ROUTE.top],[EXIT_ROUTE.bottom,B.bottom]]){
+      this.box(B.right+.15,.49,(top+bottom)/2,.30,.98,bottom-top,C.coral);
+      this.box(B.right+.15,1.02,(top+bottom)/2,.43,.08,bottom-top,C.cream);
     }
-    // Dusky courtyard beyond the arches, not black voids.
-    this.box(0,2.1,-7.7,21,4.2,.2,C.darkCoral,false);
-    this.box(GATE.outsideLeft-.15,.42,(GATE.outsideEnd+GATE.outsideShoulder)/2,.3,.84,GATE.outsideShoulder-GATE.outsideEnd,C.coral,false);
-    this.box(0,-.06,-6.5,21,.12,2.3,C.lightCoral);
-    for(let x=-9.5;x<=10;x+=.6)this.line([[x,4.72,-5.0],[x+.08,4.84,-5.0]],C.darkCoral,.20);
-    // Asymmetric tower and rooftop stair silhouette.
-    this.box(-6.8,6.5,-7.8,4.2,3.8,3.1,C.coral);
-    this.box(-6.8,8.45,-7.8,4.45,.2,3.3,C.lightCoral);
-    this.box(8,7.3,-7.6,2.8,4.5,3,C.lightCoral);
-    // Left terrace, low enough to keep the playable ground visible.
-    this.box(-9.5,1.05,.3,2.0,2.1,11.3,C.coral);
-    this.box(-9.5,2.18,.3,2.3,.2,11.5,C.lightCoral);
-    for(let i=0;i<9;i++)this.box(-7.95,1.95-i*.23,-3.7+i*.57,1.1,.25,1.0,C.lightCoral);
-    this.box(-9.8,2.6,.1,.3,.7,11.2,C.coral);
-    for(const z of [-4.6,-1.3,2,5.3]){
-      this.cylinder(-9.65,3.7,z,.16,.2,2.0,C.lightCoral,12);
-      this.box(-9.65,4.75,z,.5,.18,.5,C.cream);
+    for(const z of [EXIT_ROUTE.top-.15,EXIT_ROUTE.bottom+.15]){
+      this.box((B.right+EXIT_ROUTE.end)/2,.27,z,EXIT_ROUTE.end-B.right,.54,.30,C.coral);
+      this.box((B.right+EXIT_ROUTE.end)/2,.58,z,EXIT_ROUTE.end-B.right,.08,.40,C.lightCoral);
     }
-    this.box(-9.65,4.95,.2,.65,.25,10.7,C.coral);
-    // Right wing frames the exit without covering the actors.
-    this.box(10.8,1.2,-1,1.4,2.4,9,C.coral);
-    this.box(10.8,2.48,-1,1.65,.18,9.2,C.lightCoral);
-    for(let z=-4.8;z<3.5;z+=.65){this.box(10.8,3,z,.15,1,.17,C.lightCoral,false);}
-    this.box(10.8,3.55,-1,1.6,.2,9,C.coral);
-    this.box(10.4,.28,4.9,1.0,.55,1.6,C.lightCoral);
-    // Foreground plinths leave the central action readable.
-    for(const x of [-10.3,10.3]){
-      this.box(x,.35,6.2,1.1,.7,1.1,C.coral);
-      this.box(x,.78,6.2,1.35,.16,1.35,C.lightCoral);
-      this.cylinder(x,1.55,6.2,.28,.35,1.45,C.coral,12);
-      this.box(x,2.32,6.2,.9,.18,.9,C.cream);
-    }
-    // Banner, water spout and small architectural details.
-    const pole=this.cylinder(-4,6.1,-6.2,.035,.035,3,C.ink,8);
-    pole.castShadow=false;
-    const flag=this.mesh(new THREE.PlaneGeometry(1.05,1.7,5,7),C.mint,false);flag.position.set(-3.45,6.55,-6.18);flag.material=this.material(C.mint,'environment',THREE.DoubleSide);this.flags.push(flag);
-    for(const x of [-8.2,0,8.2])this.cylinder(x,4.15,-5.11,.12,.12,.15,C.cream,12).rotation.x=Math.PI/2;
+    // Rear wall contains the entire 1.9 m leaf. The foreground wall stays low.
+    const far=GATE.z-GATE.halfWidth,near=GATE.z+GATE.halfWidth;
+    this.box(GATE.x,1.69,(B.top+far)/2,GATE.frameDepth,3.38,far-B.top,C.coral);
+    this.box(GATE.x,3.43,(B.top+far)/2,.44,.10,far-B.top,C.lightCoral);
+    this.box(GATE.x,.36,(near+B.bottom)/2,GATE.frameDepth,.72,B.bottom-near,C.coral);
+    this.box(GATE.x,.77,(near+B.bottom)/2,.42,.10,B.bottom-near,C.cream);
+    // A small flag and foliage retain motion without widening the camera bounds.
+    const pole=this.cylinder(-4.6,3.15,-4.52,.025,.025,1.65,C.ink,8);pole.castShadow=false;
+    const flag=this.mesh(new THREE.PlaneGeometry(.8,1.05,5,7),C.mint);flag.position.set(-4.18,3.39,-4.50);flag.material=this.material(C.mint,'environment',THREE.DoubleSide);this.flags.push(flag);
   }
   buildFloor(){
-    const floorTop=.006;
-    for(let x=-10;x<=10;x+=2)this.line([[x,floorTop,-5],[x,floorTop,7]],0xb4893f,.16);
-    for(let z=-5;z<=7;z+=1.5)this.line([[-10,floorTop,z],[10,floorTop,z]],0xb4893f,.16);
-    for(const z of [-4.8,5.7]){
-      this.box(0,.012,z,18,.025,.12,C.cream,false);
-      for(let x=-8.7;x<9;x+=.36){const tile=this.box(x,.035,z,.15,.025,.15,C.darkCoral,false);tile.rotation.y=Math.PI/4;}
+    const y=.006;
+    for(let x=-8;x<10;x+=1.5)this.line([[x,y,B.top],[x,y,B.bottom]],0xb4893f,.13);
+    for(let z=-3.75;z<4.3;z+=1.35)this.line([[B.left,y,z],[B.right,y,z]],0xb4893f,.13);
+    for(const x of [-8.66,9.66])this.box(x,.012,0,.10,.024,8.0,C.lightCoral,false);
+    for(const z of [-4.02,4.02]){
+      this.box(.5,.012,z,18.5,.024,.10,C.cream,false);
+      for(let x=-8.5;x<9.6;x+=.5){const tile=this.box(x,.029,z,.10,.012,.10,C.darkCoral,false);tile.rotation.y=Math.PI/4;}
     }
-    for(let i=0;i<16;i++){
-      const x=-8.7+(i*5.37)%17.4,z=-4.2+(i*3.27)%9.5;
-      this.line([[x,.014,z],[x+.12,.014,z+.02],[x+.2,.014,z-.04]],0xa67a36,.18);
+    // The actual passage has flush paving continuous with the pale outer court.
+    this.box(GATE.x,.01,GATE.z,.62,.02,GATE.halfWidth*2,C.cream,false);
+    for(let x=10.2;x<13;x+=.65)this.line([[x,y,EXIT_ROUTE.top],[x,y,EXIT_ROUTE.bottom]],C.darkCoral,.15);
+    for(let i=0;i<14;i++){
+      const x=-8+(i*5.37)%17,z=-3.7+(i*3.27)%7.4;
+      this.line([[x,.014,z],[x+.12,.014,z+.02],[x+.2,.014,z-.04]],0xa67a36,.14);
     }
   }
   buildDoor(){
-    const g=new THREE.Group();g.name='Single hinged courtyard gate';g.position.set(GATE.x,0,GATE.z);this.stage.add(g);
-    // Infill belongs to the selected arcade opening; its hole follows the cream surround.
-    const spring=GATE_HEIGHT-GATE.halfWidth,outerSpring=GATE_ARCADE_HEIGHT-1.35;
-    const infill=new THREE.Shape();infill.moveTo(-1.35,0);infill.lineTo(-1.35,outerSpring);infill.absarc(0,outerSpring,1.35,Math.PI,0,true);infill.lineTo(1.35,0);infill.lineTo(1.18,0);infill.lineTo(1.18,spring);infill.absarc(0,spring,1.18,0,Math.PI,false);infill.lineTo(-1.18,0);infill.closePath();
-    const fillGeometry=new THREE.ExtrudeGeometry(infill,{depth:.22,bevelEnabled:false,curveSegments:20});fillGeometry.translate(0,0,-.11);this.mesh(fillGeometry,C.coral,false,g);
-    this.arch(0,0,GATE.halfWidth*2,GATE_HEIGHT,GATE.frameDepth,C.cream,0,g);
-    const r=GATE.halfWidth-.025;
-    const shape=new THREE.Shape();shape.moveTo(-r,.035);shape.lineTo(r,.035);shape.lineTo(r,spring);shape.absarc(0,spring,r,0,Math.PI,false);shape.closePath();
-    this.doorHinge.position.set(GATE.halfWidth,0,0);g.add(this.doorHinge);
-    const panel=new THREE.Group();panel.position.x=-GATE.halfWidth;this.doorHinge.add(panel);
-    const leafGeometry=new THREE.ExtrudeGeometry(shape,{depth:GATE.leafThickness,bevelEnabled:false,curveSegments:20});leafGeometry.translate(0,0,-GATE.leafThickness/2);this.mesh(leafGeometry,C.green,false,panel);
-    for(let x=-.6;x<=.7;x+=.3)this.line([[x,.15,.033],[x,spring+.25,.033]],C.ink,.17,panel);
-    for(const y of [.55,1.85]){
-      this.box(.75,y,.055,.25,.085,.05,C.ink,false,panel);
-      this.cylinder(GATE.halfWidth,y,0,.055,.055,.24,C.ink,10,g);
+    const g=new THREE.Group();g.name='Sliding gate and full-length masonry pocket';g.position.set(GATE.x,0,GATE.z);g.rotation.y=-Math.PI/2;this.stage.add(g);
+    const spring=GATE_HEIGHT-GATE.halfWidth;
+    const spandrel=new THREE.Shape();spandrel.moveTo(-1.23,spring);spandrel.lineTo(-1.23,3.64);spandrel.lineTo(1.23,3.64);spandrel.lineTo(1.23,spring);spandrel.lineTo(GATE.halfWidth,spring);spandrel.absarc(0,spring,GATE.halfWidth,0,Math.PI,false);spandrel.closePath();
+    const cap=new THREE.ExtrudeGeometry(spandrel,{depth:.30,bevelEnabled:false,curveSegments:20});cap.translate(0,0,-.15);this.mesh(cap,C.coral,false,g);
+    this.arch(0,0,GATE.halfWidth*2,GATE_HEIGHT,.48,C.cream,0,g);
+    // The rectangular shutter rides behind an arched surround; there are no hinges.
+    g.add(this.doorSlide);this.doorSlide.name='Leaf translating into the rear wall';
+    this.box(0,GATE_HEIGHT/2,0,GATE.leafWidth,GATE_HEIGHT,GATE.leafThickness,C.green,false,this.doorSlide);
+    for(const face of [-1,1]){
+      for(let x=-.76;x<=.8;x+=.19)this.line([[x,.12,face*.054],[x,3.25,face*.054]],C.ink,.17,this.doorSlide);
+      for(const y of [.36,2.55])this.box(0,y,face*.058,1.78,.09,.016,C.mint,false,this.doorSlide);
+      // Flush recessed grip does not imply rotation.
+      this.box(.64,1.3,face*.06,.10,.32,.018,C.ink,false,this.doorSlide);
     }
-    this.box(-.68,1.2,.065,.14,.28,.05,C.ink,false,panel);
-    this.cylinder(-.68,1.2,.13,.065,.065,.09,C.cream,12,panel).rotation.x=Math.PI/2;
-    // Threshold and both landing surfaces share y=0; decoration remains below the shadow.
-    this.box(0,.008,0,GATE.halfWidth*2,.016,.32,C.lightCoral,false,g);
-    this.signHinge.position.set(1.72,2.5,.1);g.add(this.signHinge);
-    this.box(0,0,0,.85,.65,.12,C.cream,false,this.signHinge);
-    this.line([[-.27,0,.08],[.25,0,.08],[.07,.16,.08]],C.ink,1,this.signHinge);
-    this.line([[.25,0,.08],[.07,-.16,.08]],C.ink,1,this.signHinge);
+    this.box(-.92,3.46,.10,3.84,.10,.16,C.darkCoral,false,g);
+    this.box(-.92,3.51,.10,3.95,.035,.21,C.cream,false,g);
+    // Both rails visibly continue into the pocket, which fits the entire leaf.
+    for(const z of [-.065,.065])this.box(-.95,.025,z,3.8,.02,.025,C.ink,false,g);
+    this.counterweight.position.set(-1.35,1.0,.19);g.add(this.counterweight);
+    this.box(0,0,0,.19,.55,.13,C.cream,false,this.counterweight);
+    for(const side of [-1,1])this.box(-1.35+side*.16,1.73,.19,.025,2.9,.025,C.ink,false,g);
+    this.line([[-1.35,.3,.19],[-1.35,3.38,.19],[.70,3.38,.19]],C.cream,.85,g);
+    for(const x of [-1.35,.70]){
+      const wheel=this.mesh(new THREE.TorusGeometry(.105,.025,6,16),C.cream,false,g);wheel.position.set(x,3.36,.20);
+    }
+    this.signHinge.position.set(.99,2.60,-.31);g.add(this.signHinge);
+    this.box(0,0,0,.58,.38,.035,C.cream,false,this.signHinge);
+    this.line([[-.18,0,.026],[.18,0,.026],[.04,.11,.026]],C.green,1,this.signHinge);
+    this.line([[.18,0,.026],[.04,-.11,.026]],C.green,1,this.signHinge);
     return g;
   }
   buildRelayPads(){
-    // A pale stone landing distinguishes the far side from the ochre courtyard.
-    // It stays flush below the projection and makes the handoff readable through the arch.
-    this.box(GATE.x,.006,-6.3,1.72,.012,2.1,C.cream,false);
-    this.box((GATE.outsideLeft+5)/2,.006,-7.05,5-GATE.outsideLeft,.012,.62,C.cream,false);
+    const copper=0xb07b55;
     for(const [index,pad] of [INNER_PAD,OUTER_PAD].entries()){
-      const rim=this.ring(pad.x,pad.z,PAD_RADIUS+.08,C.cream);rim.name=index?'Outside hold position':'Inside hold position';rim.position.y=.026;
+      const rim=this.ring(pad.x,pad.z,PAD_RADIUS+.08,index?C.lightCoral:C.cream);rim.name=index?'Outside relay pedal':'Inside relay pedal';rim.position.y=.026;
       const face=new THREE.Mesh(new THREE.CylinderGeometry(PAD_RADIUS-.05,PAD_RADIUS-.05,.016,48),new THREE.MeshBasicMaterial({color:C.mint}));
       face.position.set(pad.x,.018,pad.z);this.stage.add(face);this.padFaces.push(face);
-      const center=this.ring(pad.x,pad.z,.13,C.green);center.position.y=.035;
+      const center=this.ring(pad.x,pad.z,.15,C.green,.025);center.position.y=.035;
+      for(const angle of [0,Math.PI*2/3,Math.PI*4/3]){
+        const d=.27;this.line([[pad.x+Math.cos(angle)*.20,.036,pad.z+Math.sin(angle)*.20],[pad.x+Math.cos(angle)*d,.036,pad.z+Math.sin(angle)*d]],C.green,.8);
+      }
     }
-    this.line([[INNER_PAD.x,.023,INNER_PAD.z],[INNER_PAD.x,.023,-4.55],[GATE.x-GATE.halfWidth,.023,-4.55],[GATE.x-GATE.halfWidth,.023,GATE.z]],C.mint,.75);
-    this.line([[OUTER_PAD.x,.023,OUTER_PAD.z],[GATE.x,.023,-6.95],[GATE.x,.023,GATE.z]],C.mint,.75);
+    // Copper inlays physically run from each pedal to the shared counterweight.
+    const wire=(points:number[][])=>{this.line(points,copper,.95);for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],dx=b[0]-a[0],dz=b[2]-a[2],length=Math.hypot(dx,dz);const m=this.box((a[0]+b[0])/2,.020,(a[2]+b[2])/2,length,.012,.028,copper,false);m.rotation.y=-Math.atan2(dz,dx);}};
+    wire([[INNER_PAD.x,.024,INNER_PAD.z],[.67,.024,INNER_PAD.z],[.67,.024,-2.25],[1.76,.024,-2.25]]);
+    wire([[OUTER_PAD.x,.024,OUTER_PAD.z],[3.32,.024,OUTER_PAD.z],[3.32,.024,-2.25],[2.24,.024,-2.25]]);
   }
   buildPlanter(x:number,z:number,scale:number){
     const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(scale);this.stage.add(g);
@@ -201,13 +189,13 @@ export class StageScene {
   buildProps(){
     // Amphora, three stones, fallen leaves and a sleeping courtyard cat.
     const v=[new THREE.Vector2(.3,0),new THREE.Vector2(.47,.3),new THREE.Vector2(.43,.75),new THREE.Vector2(.2,1),new THREE.Vector2(.2,1.2)];
-    const vase=this.mesh(new THREE.LatheGeometry(v,20),C.lightCoral);vase.position.set(10.1,0,-3.5);
-    for(const side of [-1,1]){const handle=this.mesh(new THREE.TorusGeometry(.23,.055,6,16),C.coral);handle.position.set(10.1+side*.34,.76,-3.5);}
-    const cat=this.mesh(new THREE.SphereGeometry(.33,16,8),C.cream,false);cat.position.set(-6.7,.85,-3.4);cat.scale.set(1.6,.45,.7);
-    const head=this.mesh(new THREE.SphereGeometry(.18,12,8),C.cream);head.position.set(-6.25,.92,-3.3);
-    for(const x of [-6.35,-6.14]){const ear=this.mesh(new THREE.ConeGeometry(.085,.18,3),C.cream);ear.position.set(x,1.08,-3.3);}
+    const vase=this.mesh(new THREE.LatheGeometry(v,20),C.lightCoral);vase.position.set(8.8,0,-4.58);
+    for(const side of [-1,1]){const handle=this.mesh(new THREE.TorusGeometry(.23,.055,6,16),C.coral);handle.position.set(8.8+side*.34,.76,-4.58);}
+    const cat=this.mesh(new THREE.SphereGeometry(.33,16,8),C.cream,false);cat.position.set(BENCH.x-.1,.85,BENCH.z+.1);cat.scale.set(1.6,.45,.7);
+    const head=this.mesh(new THREE.SphereGeometry(.18,12,8),C.cream);head.position.set(BENCH.x+.35,.92,BENCH.z+.2);
+    for(const x of [BENCH.x+.25,BENCH.x+.46]){const ear=this.mesh(new THREE.ConeGeometry(.085,.18,3),C.cream);ear.position.set(x,1.08,BENCH.z+.2);}
     for(let i=0;i<7;i++){
-      const leaf=this.mesh(new THREE.CircleGeometry(.09,3),C.lightCoral);leaf.rotation.x=-Math.PI/2;leaf.position.set(-5.2+Math.sin(i*4)*.9,.018,1+Math.cos(i*2)*.8);
+      const leaf=this.mesh(new THREE.CircleGeometry(.09,3),C.lightCoral);leaf.rotation.x=-Math.PI/2;leaf.position.set(PLANT_MARK.x+.6+Math.sin(i*4)*.9,.018,PLANT_MARK.z+.9+Math.cos(i*2)*.8);
     }
   }
   ring(x:number,z:number,r:number,color:number,width=.05){const m=new THREE.Mesh(new THREE.RingGeometry(r-width,r,64),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.052,z);this.stage.add(m);return m;}
@@ -223,15 +211,7 @@ export class StageScene {
       const original=m as THREE.MeshStandardMaterial;const color=original.color?.getHex()??C.cream;
       if(shadow){
         const flat=new THREE.MeshBasicMaterial({color:C.blue,side:THREE.DoubleSide,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
-        flat.onBeforeCompile=shader=>{
-          shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`vec4 projectedWorld = modelMatrix * vec4( transformed, 1.0 );
-            projectedWorld.x += projectedWorld.y * ${SHADOW_SLOPE.x};
-            projectedWorld.z += projectedWorld.y * ${SHADOW_SLOPE.z};
-            projectedWorld.y = ${SHADOW_HEIGHT};
-            vec4 mvPosition = viewMatrix * projectedWorld;
-            gl_Position = projectionMatrix * mvPosition;`);
-        };
-        flat.customProgramCacheKey=()=> 'ground-projection-v2';return flat;
+        installGroundProjection(flat,this.projectionFoot,this.projectionDoor);return flat;
       }
       return this.material(color,'actor',original.side);
     };
@@ -266,12 +246,15 @@ export class StageScene {
       }
     }
     const at=(p:Vec)=>!!frame.cue&&Math.hypot(frame.cue.x-p.x,frame.cue.z-p.z)<.01;
-    this.homeRing.visible=at(HOME)||frame.stage==='return';
+    this.homeRing.visible=at(HOME);
     this.exitRing.visible=at(EXIT);
     this.bowRing.visible=!!frame.cue&&!at(HOME)&&!at(EXIT);
     if(frame.cue)this.bowRing.position.set(frame.cue.x,.052,frame.cue.z);
     const motion=courtyardMotion(frame.t);
-    this.doorHinge.rotation.y=-GATE.maxAngle*frame.doorOpen;
+    this.doorSlide.position.x=-GATE.leafWidth*frame.doorOpen;
+    this.counterweight.position.y=1.0+frame.doorOpen*1.75;
+    this.projectionDoor.value=frame.doorOpen;
+    if(this.shadow)this.projectionFoot.value.set(this.shadow.root.position.x,this.shadow.root.position.z);
     this.padFaces.forEach((pad,i)=>{const held=i?frame.outerHeld:frame.innerHeld;pad.position.y=held?.009:.018;pad.material.color.setHex(held?C.cream:C.mint);});
     if(this.controlRing){
       this.controlRing.visible=!!frame.controlLabel&&['body','shadow'].includes(frame.target)&&!['curtain','ended'].includes(frame.stage);
@@ -280,7 +263,7 @@ export class StageScene {
     }
     this.signHinge.rotation.y=Math.PI*frame.signTurn;
     for(const botanical of this.botanicals)botanical.update(frame.t,motion.wind);
-    // Moving foliage and the hinged door keep their real cast shadows in step.
+    // Moving foliage and the sliding leaf keep their real cast shadows in step.
     if(Math.abs(frame.t-this.lastShadowUpdate)>.08){this.renderer.shadowMap.needsUpdate=true;this.lastShadowUpdate=frame.t;}
     for(const flag of this.flags){const p=flag.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i);p.setZ(i,Math.sin(frame.t*1.4+x*3+p.getY(i))*.035*(x+.55));}p.needsUpdate=true;}
   }

@@ -20,8 +20,8 @@ test('movement and following stay outside the planter',()=>{
  g.body.x=-6.85;g.body.z=1.6;for(let i=0;i<600;i++)g.follow(g.body,{x:-3,z:PLANT.z},1/60);assert(dist(g.body,{x:-3,z:PLANT.z})<.1);assert(dist(g.body,PLANT)>PLANT.radius);
 });
 
-test('host skip preserves provenance and never teleports return motion',()=>{
- const g=new Game();run(g,2,()=>({x:1,z:0}));g.skip();const p={...g.body};g.skip();g.step();assert(dist(p,g.body)<.1);assert(g.events.filter(e=>e.type==='host-skip').length===2);
+test('host ending preserves provenance and never teleports; repeated ending is inert',()=>{
+ const g=new Game();run(g,2,()=>({x:1,z:0}));const p={...g.body};g.skip();g.skip();g.step();assert(dist(p,g.body)<.1);assert.equal(g.events.filter(e=>e.type==='host-skip').length,1);assert.equal(g.memory.endingSource,'host');assert.equal(g.memory.door,'unfinished');
 });
 
 test('replay reads historical snapshots without modifying the live record',()=>{
@@ -48,9 +48,11 @@ test('ring gently settles the actor but intentional movement can leave',()=>{
  assert(dist(g.body,HOME)>1.5);
 });
 
-test('a completed opening leaves after the instruction has been readable, with no runtime minimum',()=>{
- const g=new Game();g.goal=true;g.distance=3;g.arrivalBeat='home';g.cue={...HOME};
- run(g,6);assert.notEqual(g.stage,'arrival');assert(g.events.find(e=>e.type==='transition').t<6);
+test('opening transition follows a real plate release and failed crossing, never elapsed time',()=>{
+ const g=new Game();run(g,40);assert.equal(g.stage,'arrival');assert(!g.events.some(e=>e.type==='gate-failure'));
+ until(g,'separation',40,g=>policy(g));
+ const press=g.events.find(e=>e.type==='first-plate'),release=g.events.find(e=>e.type==='first-release'),fail=g.events.find(e=>e.type==='gate-failure');
+ assert(press&&release&&fail);assert(press.t<release.t&&release.t<fail.t);assert(g.time-fail.t<2);assert(!g.events.some(e=>e.type==='instruction-response'&&e.response==='declined'));
 });
 
 test('interrupted animation transitions retain all previous pose weights',()=>{
@@ -105,18 +107,20 @@ test('a first departure is looked down at before surprise and before pursuit',()
  assert(surprised);
 });
 
-test('rapid completion preserves the opening line instead of replacing it within one frame',()=>{
- const g=new Game();g.arrivalBeat='home';g.cue={...HOME};g.distance=4;g.goal=true;run(g,.5);
- assert.equal(g.stage,'arrival');assert(g.line.includes('请先到门前'));run(g,4);assert.notEqual(g.stage,'arrival');
+test('opening instruction survives the first frame and no-input remains an open attempt',()=>{
+ const g=new Game();const line=g.line;run(g,.5);assert.equal(g.stage,'arrival');assert.equal(g.line,line);assert(line.includes('庭院'));
+ run(g,15);assert.equal(g.stage,'arrival');assert.equal(g.memory.door,'untried');
 });
 
-test('handoff into the old route turns once per tick and stays planted until aligned',()=>{
- const g=new Game();g.body.yaw=Math.PI;g.body.gazeYaw=Math.PI;g.echoWindow=10;g.transition('echo');let prior={...g.body};
- for(let i=0;i<240&&!g.echoReady;i++){
-  g.step();assert(dist(g.body,HOME)<.001);
+test('quote preparation pivots with planted feet before historical motion begins',()=>{
+ const g=new Game('teacher');until(g,'return',80,g=>policy(g,'shadow-first'));
+ for(let i=0;i<1800&&g.quoteStatus==='returning';i++){g.setInput(0,0);g.step();}
+ assert.equal(g.quoteStatus,'aligning');const p={...g.body};let prior={...g.body};
+ for(let i=0;i<360&&g.quoteStatus==='aligning';i++){
+  g.step();assert(dist(g.body,p)<.02);if(Math.abs(g.body.yaw-prior.yaw)>.00001)assert(Math.hypot(g.body.vx,g.body.vz)<.005);
   assert(Math.abs(g.body.yaw-prior.yaw)*60<=MOTION.turnSpeed+.001);
   assert(Math.abs(g.body.yawVelocity-prior.yawVelocity)*60<=MOTION.turnAcceleration+.001);
   prior={...g.body};
  }
- assert(g.echoReady);assert(Math.abs(g.body.yaw-g.route[0].yaw)<.07);
+ assert.equal(g.quoteStatus,'playing');assert(Math.abs(Math.atan2(Math.sin(g.body.yaw-g.route[0].yaw),Math.cos(g.body.yaw-g.route[0].yaw)))<.07);
 });

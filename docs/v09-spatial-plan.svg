@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title desc">
+<title id="title">双庭院与唯一通道：v0.9 空间关系草图</title>
+<desc id="desc">左侧主庭院与右侧外庭由连续隔墙分开，中间只有一个滑门。内踏板偏离门轴，外踏板在门另一侧。门袋向上收入门扇。外庭有会合和离场空间。此图是设计示意而非已实现游戏。</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#384e87"/></marker>
+  <pattern id="hatch" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 10L10 0" stroke="#a75557" stroke-width="2" opacity=".35"/></pattern>
+  <style>text{font-family:'PingFang SC','Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#30334c}.title{font-size:29px;font-weight:600}.sub{font-size:15px;fill:#705c55}.label{font-size:19px;font-weight:600}.note{font-size:16px}.small{font-size:14px;fill:#65564f}.wall{fill:#c96556;stroke:#a74d4d;stroke-width:2}.route{fill:none;stroke:#384e87;stroke-width:3;stroke-dasharray:8 7;marker-end:url(#arrow)}</style>
+</defs>
+<rect width="1280" height="800" fill="#f5e8c9"/>
+<text x="58" y="61" class="title">两块完整的空间，一道真正需要互相留住的门。</text>
+<text x="60" y="94" class="sub">v0.9 · 平面关系草图 / 尚未实现 · 虚线仅用于解释路线，不出现在游戏画面里</text>
+<!-- Walkable floors: no stray strip around the dividing wall. -->
+<rect x="72" y="170" width="657" height="430" fill="#edbc4a"/>
+<rect x="757" y="170" width="410" height="430" fill="#f8efda"/>
+<path d="M1167 314H1270V425H1167" fill="#f8efda"/>
+<g stroke="#bc985d" opacity=".17" fill="none">
+<path d="M190 180V590M310 180V590M430 180V590M550 180V590M670 180V590M830 180V590M950 180V590M1070 180V590"/>
+<path d="M80 270H720M80 380H720M80 490H720M765 270H1160M765 380H1160M765 490H1160"/>
+</g>
+<!-- Perimeter and actual separating wall. -->
+<path class="wall" d="M60 158H1179V182H60ZM60 158H84V612H60ZM60 588H1179V612H60Z"/>
+<path class="wall" d="M1155 182H1179V314H1155ZM1155 425H1179V588H1155Z"/>
+<rect x="727" y="182" width="30" height="120" class="wall"/>
+<rect x="727" y="414" width="30" height="174" class="wall"/>
+<rect x="719" y="191" width="46" height="111" fill="url(#hatch)" stroke="#a74d4d"/>
+<!-- Door: solid open position, dotted closed position, exact pocket. -->
+<rect x="737" y="195" width="10" height="105" rx="2" fill="#457e6e"/>
+<rect x="737" y="305" width="10" height="105" rx="2" fill="none" stroke="#457e6e" stroke-width="2" stroke-dasharray="5 4"/>
+<path d="M784 291V215" stroke="#457e6e" stroke-width="2" fill="none"/>
+<path d="M779 224L784 215L789 224" stroke="#457e6e" stroke-width="2" fill="none"/>
+<rect x="719" y="302" width="46" height="8" fill="#fff0c9"/>
+<rect x="719" y="406" width="46" height="8" fill="#fff0c9"/>
+<!-- Pads, anchored feet. -->
+<circle cx="515" cy="452" r="27" fill="#91b5a2" stroke="#fff0c9" stroke-width="6"/>
+<circle cx="515" cy="452" r="12" fill="none" stroke="#457e6e" stroke-width="2"/>
+<circle cx="891" cy="445" r="27" fill="#c4cbb4" stroke="#e5d7b8" stroke-width="6"/>
+<circle cx="891" cy="445" r="12" fill="none" stroke="#8a9f8b" stroke-width="2"/>
+<path class="route" d="M295 482Q394 506 477 469"/>
+<path class="route" d="M549 436Q625 348 706 355"/>
+<path class="route" d="M781 357Q870 358 886 409"/>
+<path class="route" d="M931 444Q1000 450 1053 397Q1117 345 1233 368"/>
+<!-- Abstract actor and long shadow are diagram symbols. -->
+<ellipse cx="289" cy="500" rx="39" ry="12" transform="rotate(30 289 500)" fill="#374f9f" opacity=".9"/>
+<circle cx="268" cy="468" r="11" fill="#fff0c9" stroke="#574950" stroke-width="2"/>
+<path d="M258 479L253 499H281L277 479Z" fill="#fff0c9" stroke="#574950" stroke-width="2"/>
+<path d="M261 500V508M274 500V508" stroke="#574950" stroke-width="3"/>
+<text x="113" y="231" class="label">主庭院</text>
+<text x="113" y="259" class="small">试门 · 失同步 · 发现搭档</text>
+<text x="825" y="231" class="label">完整外庭 / 街口</text>
+<text x="825" y="259" class="small">接手 · 相迎 · 会合 · 远行</text>
+<text x="365" y="536" class="note">内板离门有真实距离</text>
+<text x="365" y="560" class="small">松脚后，独自来不及穿门</text>
+<text x="827" y="526" class="note">外板从起初就存在</text>
+<text x="827" y="550" class="small">不靠“过门后突然生成”揭示</text>
+<text x="466" y="324" class="label">唯一通道</text>
+<path d="M578 320L711 341" stroke="#705c55" stroke-width="1.5" fill="none"/>
+<text x="512" y="202" class="small">整扇门收入门袋</text>
+<path d="M653 206L712 223" stroke="#705c55" stroke-width="1.5" fill="none"/>
+<text x="952" y="143" class="small">墙端连接实体边界</text>
+<text x="1108" y="466" class="small">共同离场 →</text>
+<rect x="60" y="650" width="1160" height="104" rx="12" fill="#fff7e7"/>
+<text x="84" y="681" class="note">学生：影子留内板 → 身体先过 → 身体留外板 → 影子过来</text>
+<text x="84" y="711" class="note">教师：旧动作把身体带上内板 → 影子先过 → 影子留外板 → 玩家接手身体</text>
+<text x="84" y="738" class="small">相机同时看清两侧地面；前段隔墙降低遮挡；投影须按墙和门洞截断，不能穿到另一院。</text>
+</svg>

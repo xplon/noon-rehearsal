@@ -1,0 +1,27 @@
+{
+  "source": "https://fonts.googleapis.com/css2",
+  "requiredCharacters": 598,
+  "requiredHanCharacters": 495,
+  "requiredTextSha256": "0348c74a5d793e7d981dedc85357b35904fbe8f212bb8962df9f8a5ecd18e7cc",
+  "coverageCheck": "actual Unicode cmap; all required characters present",
+  "fonts": [
+    {
+      "family": "Noto Serif SC",
+      "weight": 600,
+      "file": "noon-serif.woff2",
+      "format": "WOFF2",
+      "bytes": 104604,
+      "cmapCharacters": 598,
+      "sha256": "ef8008ea6ffa66f588dfa774b724df52c1f3fece3f19922ecd74b7d34d015cc8"
+    },
+    {
+      "family": "Noto Sans SC",
+      "weight": 400,
+      "file": "noon-sans.woff2",
+      "format": "WOFF2",
+      "bytes": 79232,
+      "cmapCharacters": 598,
+      "sha256": "51448ff6449f7cb5e289f4d455f1849f8ad41e8886f427f84334532b7b6260bd"
+    }
+  ]
+}
